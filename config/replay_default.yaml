@@ -1,0 +1,6 @@
+seed: 0
+dataset_folder_path: '/home/plaif_train/syzy/motion/mo_plaif_act/dataset/pick_cube/'
+episode_idx: 0
+
+defaults:
+  - task_config: pick_cube

@@ -1,0 +1,32 @@
+<mujoco model="link0">
+  <default>
+    <default class="visual">
+      <geom group="2" type="mesh" contype="0" conaffinity="0"/>
+    </default>
+    <default class="collision">
+      <geom group="3" type="mesh"/>
+    </default>
+  </default>
+  <asset>
+    <material name="XID_Default_28FDDE125FCD40CB85B4287EFC819E04_shader" specular="0.5" shininess="0.5" rgba="0.8 0.8 0.8 1"/>
+    <material name="XID_768588_2E571D5978994D3ABAE2BF078BC8457F_shader" specular="0.5" shininess="0.5" rgba="0.0722719 0.0908417 0.0975874 1"/>
+    <material name="255,255,255" specular="0.5" shininess="0.5" rgba="0.8 0.8 0.8 1"/>
+    <material name="0,153,255" specular="0.5" shininess="0.5" rgba="0.8 0.8 0.8 1"/>
+    <mesh file="link0_0.obj"/>
+    <mesh file="link0_1.obj"/>
+    <mesh file="link0_2.obj"/>
+    <mesh file="link0_3.obj"/>
+  </asset>
+  <worldbody>
+    <body name="link0">
+      <geom mesh="link0_0" material="0,153,255" class="visual"/>
+      <geom mesh="link0_1" material="255,255,255" class="visual"/>
+      <geom mesh="link0_2" material="XID_768588_2E571D5978994D3ABAE2BF078BC8457F_shader" class="visual"/>
+      <geom mesh="link0_3" material="XID_Default_28FDDE125FCD40CB85B4287EFC819E04_shader" class="visual"/>
+      <geom mesh="link0_0" class="collision"/>
+      <geom mesh="link0_1" class="collision"/>
+      <geom mesh="link0_2" class="collision"/>
+      <geom mesh="link0_3" class="collision"/>
+    </body>
+  </worldbody>
+</mujoco>

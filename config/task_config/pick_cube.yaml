@@ -1,0 +1,7 @@
+name: pick_cube
+dataset_dir: "/home/plaif_train/syzy/motion/mo_plaif_act/dataset/pick_cube/real_floor"
+num_episodes: 91
+episode_len: 165
+state_dim: 7
+action_dim: 8
+camera_names: ['top_cam', 'hand_eye_cam']

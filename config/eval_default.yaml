@@ -1,0 +1,9 @@
+seed: 0
+ckpt_path: '/home/plaif_train/syzy/motion/mo_plaif_act/logs/241002_181618/pick_cube/policy_best_epoch_16957_seed_0.ckpt'
+temporal_agg: False
+is_render: True
+rollout_num: 10
+
+defaults:
+  - task_config: pick_cube
+  - policy_config: policy_default

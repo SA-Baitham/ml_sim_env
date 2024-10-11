@@ -1,0 +1,14 @@
+policy_class: 'ACT'
+lr: 3e-5
+kl_weight: 10
+chunk_size: 50
+hidden_dim: 512
+dim_feedforward: 3200
+lr_backbone: 1e-5
+backbone: 'resnet18'
+enc_layers: 4
+dec_layers: 7
+nheads: 8
+state_dim: ${task_config.state_dim}
+action_dim: ${task_config.action_dim}
+camera_names: ${task_config.camera_names}

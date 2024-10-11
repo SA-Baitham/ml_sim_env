@@ -1,0 +1,23 @@
+<mujoco>
+    <asset>
+        <texture type="skybox" builtin="gradient" rgb1=".3 .5 .7" rgb2="0 0 0" width="32"
+            height="512" />
+        <texture name="grid" type="2d" builtin="checker" width="512" height="512" rgb1=".1 .2 .3"
+            rgb2=".2 .3 .4" />
+        <material name="grid" texture="grid" texrepeat="2 2" texuniform="true" reflectance=".2" />
+    </asset>
+
+    <visual>
+        <headlight diffuse="0.6 0.6 0.6" ambient="0.6 0.6 0.6" specular="0.1 0.1 0.1" />
+        <global azimuth="90" elevation="-90" offwidth="1280" offheight="1280" />
+        <quality numquads="32" />
+    </visual>
+
+    <worldbody>
+        <geom name="floor" type="plane" size="3 3 .01" pos="-0.025 -0.295  0" material="grid" />
+        <!-- <light name="light1" pos="0.1 0.15 2.0" dir="0 0 -1" diffuse="0.3 0.3 0.3" specular="0.1 0.1 0.1" castshadow="true"/> -->
+        <!-- <light name="light1" pos="0.1 0.75 2.0" dir="0 0 -1" diffuse="0.3 0.3 0.3" specular="0.4 0.4 0.4" castshadow="true"/> -->
+        <!-- <light name="light1" pos="0.15 -0.35 1.8" dir="0 0 -1" diffuse="0.3 0.3 0.3" specular="0.3 0.4 0.5" castshadow="true"/> -->
+        <!-- <light name="yellow_light" pos="0 0 5" dir="0 0 -1" diffuse="0.3 0.3 0" specular="0.5 0.5 0.5" /> -->
+    </worldbody>
+</mujoco>

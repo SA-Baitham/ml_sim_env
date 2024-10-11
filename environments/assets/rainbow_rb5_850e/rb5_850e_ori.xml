@@ -1,0 +1,85 @@
+<mujoco model="rb5_850e">
+  <compiler angle="radian"/>
+  <asset>
+    <mesh name="link0" file="link0.stl"/>
+    <mesh name="link1" file="link1.stl"/>
+    <mesh name="link2" file="link2.stl"/>
+    <mesh name="link3" file="link3.stl"/>
+    <mesh name="link4" file="link4.stl"/>
+    <mesh name="link5" file="link5.stl"/>
+    <mesh name="link6" file="link6.stl"/>
+  </asset>
+
+  <default>
+    <default class="ur5e">
+      <material specular="0.5" shininess="0.25" />
+      <joint axis="0 1 0" range="-6.28319 6.28319" armature="0.1" />
+      <general gaintype="fixed" biastype="affine" ctrlrange="-6.2831 6.2831" gainprm="2000"
+        biasprm="0 -2000 -400"
+        forcerange="-150 150" />
+      <default class="size3">
+        <default class="size3_limited">
+          <joint range="-3.1415 3.1415" />
+          <general ctrlrange="-3.1415 3.1415" />
+        </default>
+      </default>
+      <default class="size1">
+        <general gainprm="500" biasprm="0 -500 -100" forcerange="-28 28" />
+      </default>
+      <default class="visual">
+        <geom type="mesh" contype="0" conaffinity="0" group="2" />
+      </default>
+      <default class="collision">
+        <geom type="capsule" group="3" />
+        <default class="eef_collision">
+          <geom type="cylinder" />
+        </default>
+      </default>
+      <site size="0.001" rgba="0.5 0.5 0.5 0.3" group="4" />
+    </default>
+  </default>
+
+  <worldbody>
+    <geom type="mesh" mesh="link0"/>
+    <body name="link1" pos="0 0 0.1692">
+      <inertial pos="5.7e-05 -0.005795 -0.034516" quat="0.676677 0.181125 -0.183239 0.689729" mass="4.147" diaginertia="0.00940157 0.00878691 0.0073332"/>
+      <joint name="base" pos="0 0 0" axis="0 0 1" range="-3.14 3.14" actuatorfrcrange="-150 150"/>
+      <geom type="mesh" mesh="link1"/>
+      <body name="link2">
+        <inertial pos="-3.7e-05 -0.121603 0.212933" quat="0.999997 0.000348233 7.80187e-05 -0.00223104" mass="9.633" diaginertia="0.392214 0.388915 0.0219492"/>
+        <joint name="shoulder" pos="0 0 0" axis="0 1 0" range="-3.14 3.14" actuatorfrcrange="-150 150"/>
+        <geom type="mesh" mesh="link2"/>
+        <body name="link3" pos="0 0 0.425">
+          <inertial pos="2.1e-05 -0.015845 0.202568" quat="0.999948 0.0100341 -5.40187e-05 -0.00170427" mass="3.915" diaginertia="0.11204 0.111832 0.0075271"/>
+          <joint name="elbow" pos="0 0 0" axis="0 1 0" range="-3.14 3.14" actuatorfrcrange="-150 150"/>
+          <geom type="mesh" mesh="link3"/>
+          <body name="link4" pos="0 0 0.392">
+            <inertial pos="5.7e-05 -0.106332 0.025881" quat="0.986693 0.162394 -0.00142514 0.00799378" mass="1.452" diaginertia="0.00162904 0.00160108 0.00118182"/>
+            <joint name="wrist1" pos="0 0 0" axis="0 1 0" range="-3.14 3.14" actuatorfrcrange="-30 30"/>
+            <geom type="mesh" mesh="link4"/>
+            <body name="link5" pos="0 -0.1107 0.1107">
+              <inertial pos="-2.8e-05 -0.025911 -0.004363" quat="0.812497 0.582798 -0.00662653 0.0123056" mass="1.454" diaginertia="0.00163147 0.00160354 0.00118381"/>
+              <joint name="wrist2" pos="0 0 0" axis="0 0 1" range="-3.14 3.14" actuatorfrcrange="-30 30"/>
+              <geom type="mesh" mesh="link5"/>
+              <body name="link6">
+                <inertial pos="-2e-06 -0.079964 -0.000494" quat="0.706709 -0.0427371 -0.0387873 0.705146" mass="0.243" diaginertia="0.000243707 0.000147897 0.000142261"/>
+                <joint name="wrist3" pos="0 0 0" axis="0 1 0" range="-3.14 3.14" actuatorfrcrange="-30 30"/>
+                <geom type="mesh" mesh="link6"/>
+              </body>
+            </body>
+          </body>
+        </body>
+      </body>
+    </body>
+  </worldbody>
+
+  <actuator>
+    <general class="size3" name="shoulder_pan" joint="base" />
+    <general class="size3" name="shoulder_lift" joint="shoulder" />
+    <general class="size3_limited" name="elbow" joint="elbow" />
+    <general class="size1" name="wrist_1" joint="wrist1" />
+    <general class="size1" name="wrist_2" joint="wrist2" />
+    <general class="size1" name="wrist_3" joint="wrist3" />
+  </actuator>
+
+</mujoco>

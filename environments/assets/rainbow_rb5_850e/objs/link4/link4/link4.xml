@@ -1,0 +1,36 @@
+<mujoco model="link4">
+  <default>
+    <default class="visual">
+      <geom group="2" type="mesh" contype="0" conaffinity="0"/>
+    </default>
+    <default class="collision">
+      <geom group="3" type="mesh"/>
+    </default>
+  </default>
+  <asset>
+    <material name="244,244,244_1" specular="0.5" shininess="0.5" rgba="0.8 0.8 0.8 1"/>
+    <material name="125,125,125_1" specular="0.5" shininess="0.5" rgba="0.3 0.3 0.3 1"/>
+    <material name="204,204,204_1" specular="0.5" shininess="0.5" rgba="0.1 0.1 0.1 1"/>
+    <material name="64,64,64_3" specular="0.5" shininess="0.5" rgba="0.1 0.1 0.1 1"/>
+    <material name="Material.007" specular="0.5" shininess="0.5" rgba="0.8 0.8 0.8 1"/>
+    <mesh file="link4_0.obj"/>
+    <mesh file="link4_1.obj"/>
+    <mesh file="link4_2.obj"/>
+    <mesh file="link4_3.obj"/>
+    <mesh file="link4_4.obj"/>
+  </asset>
+  <worldbody>
+    <body name="link4">
+      <geom mesh="link4_0" material="Material.007" class="visual"/>
+      <geom mesh="link4_1" material="64,64,64_3" class="visual"/>
+      <geom mesh="link4_2" material="204,204,204_1" class="visual"/>
+      <geom mesh="link4_3" material="125,125,125_1" class="visual"/>
+      <geom mesh="link4_4" material="244,244,244_1" class="visual"/>
+      <geom mesh="link4_0" class="collision"/>
+      <geom mesh="link4_1" class="collision"/>
+      <geom mesh="link4_2" class="collision"/>
+      <geom mesh="link4_3" class="collision"/>
+      <geom mesh="link4_4" class="collision"/>
+    </body>
+  </worldbody>
+</mujoco>
