@@ -1,0 +1,8 @@
+hydra-core
+omegaconf
+gymnasium
+pydantic
+transforms3d
+dm-control
+h5py
+numpy
