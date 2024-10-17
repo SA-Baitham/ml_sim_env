@@ -115,7 +115,7 @@ class PickCubeEnv(MujocoEnv):
             """<mujoco>
             <worldbody>
                 <body name="box" pos="0 0 0" >
-                    <geom name="cube_box" type="box" size="0.02 0.02 0.02" rgba="1 0 0 1" mass="0.1234" />
+                    <geom name="cube_box" type="box" size="0.02 0.02 0.02" rgba="1 0 0 1" mass="0.34" />
                 </body>
             </worldbody>
         </mujoco>"""
@@ -185,8 +185,6 @@ class PickCubeEnv(MujocoEnv):
         cube_geom_id = self.physics.model.name2id("unnamed_model/cube_box", "geom")
         self.physics.model.geom_friction[cube_geom_id] = rand_fric
 
-        # just before the reset set random seed
-        np.random.seed(119)
         self.physics.reset()
 
         # obj position limit
