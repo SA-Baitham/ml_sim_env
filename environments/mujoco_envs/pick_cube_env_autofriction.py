@@ -101,7 +101,6 @@ class PickCubeEnv(MujocoEnv):
         spawn_site.attach(top_cam)
 
         # hand eye camera / wrist camera
-
         wrist_cam_mount_site = gripper.find("site", "cam_mount")
         wrist_cam = mjcf.from_path(
             os.path.join(
@@ -111,11 +110,12 @@ class PickCubeEnv(MujocoEnv):
         )
         wrist_cam_mount_site.attach(wrist_cam)
 
+        # Red cube for picking
         box_model = mjcf.from_xml_string(
-            f"""<mujoco>
+            """<mujoco>
             <worldbody>
                 <body name="box" pos="0 0 0" >
-                    <geom name="cube_box" type="box" size="0.02 0.02 0.02" rgba="1 0 0 1" />
+                    <geom name="cube_box" type="box" size="0.02 0.02 0.02" rgba="1 0 0 1" mass="0.1234" />
                 </body>
             </worldbody>
         </mujoco>"""
@@ -170,12 +170,7 @@ class PickCubeEnv(MujocoEnv):
         info = {}
         self.step_num = 0
 
-        np.random.seed(119)
-
-        random_obj_mass = round(np.random.uniform(0.1, 0.9), 3)
-        rand_fric = np.random.uniform(0.0001, 0.9, 3)
-
-        print(f"New random_obj_mass: {random_obj_mass}")
+        rand_fric = sorted(np.random.uniform(0.0001, 0.9, 3), reverse=True)
         print(f"New rand_fric: {rand_fric}")
 
         # how to find geom name
@@ -184,10 +179,14 @@ class PickCubeEnv(MujocoEnv):
         #     for i in range(self.physics.model.ngeom)]
         # print("Available geoms:", geom_names)
 
+        # print(dir(self.physics.model))
+        print(" ===================================== ")
+
         cube_geom_id = self.physics.model.name2id("unnamed_model/cube_box", "geom")
-        self.physics.model.geom_mass[cube_geom_id] = random_obj_mass
         self.physics.model.geom_friction[cube_geom_id] = rand_fric
 
+        # just before the reset set random seed
+        np.random.seed(119)
         self.physics.reset()
 
         # obj position limit
