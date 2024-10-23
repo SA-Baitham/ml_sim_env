@@ -31,7 +31,74 @@ class PickCubeEnv(MujocoEnv):
         time_limit: float = float("inf"),
         step_limit: int = 180,
         is_render: bool = False,
+        random_dynamics_to_apply: list = [],
     ):
+        self.random_dynamics_to_apply = random_dynamics_to_apply
+        # naming convention for each property should be "<element_type>.<element_name>|<main_property_name>.<sub_property_name>.<sub_sub_property_name>...", and the value should be + and - range
+        self.robot_random_dynamics = {
+            # link masses
+            "link mass": {
+                "body.shoulder_link|inertial.mass": (0.6, -0.6),
+                "body.upper_arm_link|inertial.mass": (0.6, -0.6),
+                "body.forearm_link|inertial.mass": (0.6, -0.6),
+                "body.wrist_1_link|inertial.mass": (0.6, -0.6),
+                "body.wrist_2_link|inertial.mass": (0.6, -0.6),
+                # "body.wrist_3_link|inertial.mass": (0.6, -0.6), # commented because this makes the mass of this range link negative and stops the simulation
+            },
+
+            # joint damping
+            "joint damping": {
+                "joint.shoulder_pan_joint|damping": (0, 2.99),
+                "joint.shoulder_lift_joint|damping": (0, 2.99),
+                "joint.elbow_joint|damping": (0, 2.99),
+                "joint.wrist_1_joint|damping": (0, 2.99),
+                "joint.wrist_2_joint|damping": (0, 2.99),
+                "joint.wrist_3_joint|damping": (0, 2.99),
+            },
+
+            # # actuator gain
+            # # TODO select suitable ranges
+            # "actuator gain": {
+
+            # },
+
+            # # link inertia
+            # # TODO select suitable ranges
+            # "link inertia": {
+
+            # },
+
+            # # joint stiffness
+            # # TODO select suitable ranges
+            # "joint stiffness": {
+
+            # },
+
+            # # gravity
+            # # TODO select suitable ranges
+            # "gravity": {
+
+            # },
+        }
+
+        # TODO add random dynamics to object
+        # add object mass in the same format as used in the robot_random_dynamics
+        self.object_random_dynamics = {
+            
+        }
+
+        # TODO select suitable range
+        # add gravity in the same format as used in the robot_random_dynamics
+        self.world_random_dynamics = {
+
+        }
+
+        self.random_dynamics_groups = { 
+            "robot": self.robot_random_dynamics,
+            "box": self.object_random_dynamics,
+            "world": self.world_random_dynamics,
+        }
+    
         super().__init__(
             seed=seed,
             control_dt=control_dt,
@@ -40,10 +107,68 @@ class PickCubeEnv(MujocoEnv):
             step_limit=step_limit,
             is_render=is_render,
         )
+        # RNG seed for the pose so that it's not affected by other random processes
+        self.pose_rng = np.random.default_rng(42)
+        np.random.seed(42)
         self.hand_eye_cam = self.physics.model.camera("ur5e/robotiq_2f85/d435i/rgb")
         self.top_cam = self.physics.model.camera("d435i/rgb")
         self.ur5_robotiq = UR5Robotiq(self.physics, 0, "ur5e")
         self.env_max_reward = 1
+
+    # Function to dynamically set a nested property
+    def set_nested_property(self, obj, props, value):
+        for prop in props[:-1]:
+            obj = getattr(obj, prop)
+        setattr(obj, props[-1], value)
+
+    # Function to dynamically access properties
+    def get_nested_property(self, obj, props):
+        for prop in props:
+            obj = getattr(obj, prop)
+        return obj
+
+    def add_random_dynamics(self, model, model_random_dynamics, random_dynamics_to_apply):
+        """_summary_
+
+        Args:
+            model (dm_control.mjcf): mjcf.from_path model (e.g. model of robot, environemnt, cube, etc.)
+            model_random_dynamics ( dict ): dict of dicts containing the random dynamics with the following naming convention for each property should be "<element_type>.<element_name>|<main_property_name>.<sub_property_name>.<sub_sub_property_name>...", and the value should be + and - range. 
+            
+            e.g.:
+            model_random_dynamics = {
+                "link mass": {
+                    "body.shoulder_link|inertial.mass|link mass": (600, -600),
+                    "body.wrist_3_link|inertial.mass|link mass": (600, -600),
+                },
+
+                "joint damping": {
+                    "joint.shoulder_pan_joint|damping": (0, 2.99),
+                    "joint.shoulder_lift_joint|damping": (0, 2.99),
+                },
+            }
+
+            random_dynamics_to_apply ( list ): list of strings, each one of them is a dynamics type (e.g. link mass). Only the dynamics types included in this list will be applied
+        
+        Return:
+            model with parameters changed according to changes list
+        """
+
+        for dynamics_type in random_dynamics_to_apply:
+            
+            if dynamics_type in model_random_dynamics:
+                for dynamics_element, _range in model_random_dynamics[dynamics_type].items():
+                    desc, props = dynamics_element.split("|")
+                    desc_type, desc_name = desc.split(".")
+                    props = props.split(".")
+
+                    # set new value for this property/attribute
+                    default_value = self.get_nested_property(model.find(desc_type, desc_name), props)
+                    random_noise = np.random.uniform(*_range)
+                    new_value = default_value + random_noise
+                    print(f"Setting {dynamics_element} to {new_value}")
+                    self.set_nested_property(model.find(f"{desc_type}", f"{desc_name}"), props, new_value)
+
+        return model
 
     def load_models(self):
         self.current_file_path = os.path.dirname(os.path.realpath(__file__))
@@ -59,6 +184,11 @@ class PickCubeEnv(MujocoEnv):
             ),
         )
         robot_model.worldbody.light.clear()
+
+        # add random dynamics:
+        print("Applying random dynamics to robot")
+        robot_model = self.add_random_dynamics(robot_model, self.robot_random_dynamics, self.random_dynamics_to_apply)
+
         attachment_site = robot_model.find("site", "attachment_site")
         assert attachment_site is not None
 
@@ -189,26 +319,42 @@ class PickCubeEnv(MujocoEnv):
         spawn_site = world_model.worldbody.add("site", pos=spawn_pos, group=3)
         spawn_site.attach(robot_model)
 
+        self.models = {
+            "world": world_model,
+            "robot": robot_model,
+            "gripper": gripper,
+            "top_cam": top_cam,
+            "wrist_cam": wrist_cam,
+            "box": box_model,
+            "box2": box_model2,
+            "obj_table": obj_table,
+        }
+
         physics = mjcf.Physics.from_mjcf_model(world_model)
 
         return physics
 
     def reset(self, options=None):
+        # to reset the environment with different dynamics
+        self.load_models()
+
         info = {}
         self.step_num = 0
         self.physics.reset()
 
+        xrr = np.random.uniform(2.0, 3.0)
+
         # obj position limit
         random_position = [
-            np.random.uniform(-0.10, 0.10),
-            np.random.uniform(0.45, 0.65),
-            np.random.uniform(0.1, 0.2),
+            self.pose_rng.uniform(-0.10, 0.10),
+            self.pose_rng.uniform(0.45, 0.65),
+            self.pose_rng.uniform(0.1, 0.2),
         ]
 
         random_quat = euler.euler2quat(
             0,
             0,
-            np.pi * np.random.uniform(-1, 1),
+            np.pi * self.pose_rng.uniform(-1, 1),
         )
 
         random_pose = [
@@ -220,6 +366,8 @@ class PickCubeEnv(MujocoEnv):
             random_quat[2],
             random_quat[3],
         ]
+
+        print(f"Random Init Pose: {random_pose}")
 
         if type(options) != type(None):
             self.physics.named.data.qpos["unnamed_model/obj_joint/"] = options[
@@ -323,9 +471,36 @@ class PickCubeEnv(MujocoEnv):
 
         return obs, reward, terminated, truncated, info
 
-    def collect_data(self, options=None):
+    def collect_data(self, dynamic=None, options=None):
         episode_idx = 0
-        for i in range(100):
+
+        current_file_path = os.getcwd()
+
+        # Construct the dataset path
+        dataset_path = os.path.join(
+            os.path.dirname(os.path.dirname(current_file_path)),  # Go back two directories
+            "dataset",
+            "pick_cube",
+            '+'.join(dynamic),  # Assuming dynamic is a list of strings
+        )
+
+        logs_path = os.path.join(dataset_path, 'logs.txt')
+        
+        if not os.path.exists(dataset_path):
+            os.makedirs(dataset_path)
+        else:
+            # If the directory already exists, delete directory and create a new one
+            import shutil
+            shutil.rmtree(dataset_path)
+            os.makedirs(dataset_path)
+            
+        with open(logs_path, 'w'):
+            pass  # This will create or clean the file
+        
+
+        
+        # for i in range(100):
+        while episode_idx < 10:
             _, info = self.reset()  # options[i])
             (
                 joint_traj,
@@ -364,15 +539,9 @@ class PickCubeEnv(MujocoEnv):
             data_dict[f"/observations/images/top_cam"] = top_frames
 
             max_timesteps = len(joint_traj)
-            dataset_path = os.path.join(
-                self.current_file_path,
-                f"../../dataset/pick_cube/",
-            )
-            if not os.path.exists(dataset_path):
-                os.makedirs(dataset_path)
 
             with h5py.File(
-                dataset_path + f"episode_{episode_idx-1}.hdf5",
+                os.path.join(dataset_path, f"episode_{episode_idx-1}.hdf5"),
                 "w",
                 rdcc_nbytes=1024**2 * 2,
             ) as root:
@@ -389,6 +558,7 @@ class PickCubeEnv(MujocoEnv):
                         compression="gzip",
                         compression_opts=9,
                     )
+                # import pudb; pudb.set_trace()
                 qpos = obs.create_dataset(
                     "qpos", (max_timesteps, 7), compression="gzip", compression_opts=9
                 )
@@ -401,6 +571,42 @@ class PickCubeEnv(MujocoEnv):
 
                 for name, array in data_dict.items():
                     root[name][...] = array
+
+            # add the following to the logs.. 1. the episode name, and beneath that add the following:
+            # 2. all the different robot parameters that are mentioned in any random dynamics variable and their actual value while running this episode
+            # 3. the init pose in this episode
+            random_dynamics_actual_values = {}
+
+            for dynamics_group_name, dynamics_group in self.random_dynamics_groups.items():
+                if dynamics_group_name in self.models:
+                    for dynamics_elements in dynamics_group.values():
+                        for dynamics_element in dynamics_elements.keys():
+                            desc, props = dynamics_element.split("|")
+                            desc_type, desc_name = desc.split(".")
+                            props = props.split(".")
+
+                            actual_value = self.get_nested_property(
+                                self.models[dynamics_group_name].find(desc_type, desc_name), props
+                            )
+                            random_dynamics_actual_values[dynamics_element] = actual_value
+
+            log_message = f"Episode {episode_idx-1}:\n"
+            for random_dynamics_actual_value_name, random_dynamics_actual_value in random_dynamics_actual_values.items():
+                log_message += f"{random_dynamics_actual_value_name}: {random_dynamics_actual_value}\n"
+            # log_message += f"Random Dynamics Actual Values: {random_dynamics_actual_values}\n"
+            
+            
+            formatted_pose = [f"{x:.3f}" for x in info['generated_cube_pose']]
+            log_message += f"Init Pose: {formatted_pose}\n"
+
+            with open(logs_path, 'a') as file:
+                file.write(log_message + '\n')
+
+            # log_message = 
+            # with open(logs_path, 'a') as file:
+            #     file.write(log_message + '\n')
+
+
 
     def collect_data_sequence(self):
 
@@ -528,6 +734,7 @@ class PickCubeEnv(MujocoEnv):
                         camera_id=self.top_cam.id,
                     )
                 )
+                # print(f"is_render : {self.is_render}")
                 if self.is_render:
                     self.render()
             env_state += 1
