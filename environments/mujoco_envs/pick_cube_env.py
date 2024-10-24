@@ -599,6 +599,8 @@ class PickCubeEnv(MujocoEnv):
             formatted_pose = [f"{x:.3f}" for x in info['generated_cube_pose']]
             log_message += f"Init Pose: {formatted_pose}\n"
 
+            # print robot parameters using self.physics.model
+
             with open(logs_path, 'a') as file:
                 file.write(log_message + '\n')
 
