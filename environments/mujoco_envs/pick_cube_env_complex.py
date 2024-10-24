@@ -8,11 +8,8 @@ from enum import IntEnum
 
 from .mujoco_ur5 import UR5Robotiq, DEG2CTRL
 from .mujoco_env import MujocoEnv
-from ..trajectory_generator import JointTrajectory, interpolate_trajectory
+from ..trajectory_generator import JointTrajectory
 from ..utils import Pose, get_best_orn_for_gripper
-
-
-##### action 8, qpos 7 !!!!!
 
 
 class EnvState(IntEnum):
@@ -55,7 +52,7 @@ class PickCubeEnv(MujocoEnv):
         robot_model = mjcf.from_path(
             os.path.join(
                 self.current_file_path,
-                "../assets/universal_robots_ur5e/ur5e.xml",
+                "../assets/universal_robots_ur5e/ur5e_complex.xml",
             ),
         )
         robot_model.worldbody.light.clear()
@@ -116,7 +113,7 @@ class PickCubeEnv(MujocoEnv):
             """<mujoco>
             <worldbody>
                 <body name="box" pos="0 0 0" >
-                    <geom type="box" size="0.02 0.02 0.02" rgba="1 0 0 1"/>
+                    <geom type="box" size="0.015 0.015 0.015" rgba="1 0 0 1" />
                 </body>
             </worldbody>
         </mujoco>"""
@@ -125,23 +122,23 @@ class PickCubeEnv(MujocoEnv):
             "joint", type="free", damping=0.01, name="obj_joint"
         )
 
-        # robot table
-        box_model2 = mjcf.from_xml_string(
-            """<mujoco>
-                <asset>
-                    <material name="shiny" specular="0.5" shininess="0.8" />
-                </asset>
-                <worldbody>
-                    <body name="box" pos="0 0 0">
-                        <geom type="box" size="0.255 0.255 0.145" rgba="0.2 0.2 0.2 1" material="shiny" />
-                    </body>
-                </worldbody>
-            </mujoco>"""
-        )
+        # # table under the robot
+        # box_model2 = mjcf.from_xml_string(
+        #     """<mujoco>
+        #         <asset>
+        #             <material name="shiny" specular="0.5" shininess="0.8" />
+        #         </asset>
+        #         <worldbody>
+        #             <body name="box" pos="0 0 0">
+        #                 <geom type="box" size="0.255 0.255 0.145" rgba="0.2 0.2 0.2 1" material="shiny" />
+        #             </body>
+        #         </worldbody>
+        #     </mujoco>"""
+        # )
 
-        spawn_pos = (0, 0, 0.0)
-        spawn_site = world_model.worldbody.add("site", pos=spawn_pos, group=3)
-        spawn_site.attach(box_model2)
+        # spawn_pos = (0, 0, 0.0)
+        # spawn_site = world_model.worldbody.add("site", pos=spawn_pos, group=3)
+        # spawn_site.attach(box_model2)
 
         # make a obj table
         obj_table = mjcf.from_xml_string(
@@ -153,12 +150,6 @@ class PickCubeEnv(MujocoEnv):
                 </worldbody>
             </mujoco>"""
         )
-
-        # 0.149 0.373 0.314
-        # 0.788 0.416 0.306
-        # 0.235 0.18 0.78
-        # 0.582 0.688 0.698
-        # 0.043 0.179 0.155
 
         spawn_pos = (0, 0.55, 0.0)
         spawn_site = world_model.worldbody.add("site", pos=spawn_pos, group=3)
@@ -198,6 +189,7 @@ class PickCubeEnv(MujocoEnv):
         self.step_num = 0
         self.physics.reset()
 
+        ############################################################3
         # # obj position limit
         # random_position = [
         #     np.random.uniform(-0.10, 0.10),
@@ -210,6 +202,16 @@ class PickCubeEnv(MujocoEnv):
         #     0,
         #     np.pi * np.random.uniform(-1, 1),
         # )
+
+        # random_pose = [
+        #     random_position[0],
+        #     random_position[1],
+        #     random_position[2],
+        #     random_quat[0],
+        #     random_quat[1],
+        #     random_quat[2],
+        #     random_quat[3],
+        # ]
 
         random_pose = [
             0.06956875051242348,
@@ -230,11 +232,7 @@ class PickCubeEnv(MujocoEnv):
             self.physics.named.data.qpos["unnamed_model/obj_joint/"] = random_pose
             info["generated_cube_pose"] = random_pose
 
-        print("generated_cube_pose : ", info["generated_cube_pose"])
-
-        # joints = np.deg2rad([-87.0, -64.0, -116.0, -63.0, 90.0, -90.0])
-
-        joints = np.deg2rad([-57.0, -81.0, -121.0, 8.3, 104.0, -150.0])
+        joints = np.deg2rad([-180, -180, 150, -210, -180, -180])
 
         grip_angle = 0
 
@@ -300,16 +298,10 @@ class PickCubeEnv(MujocoEnv):
             return 1
 
     def step(self, action):
-        # target_qpos = action
+        target_qpos = action
 
-        qpos_action = Pose(position=action[:3], orientation=action[3:7])
-        target_qpos = self.ur5_robotiq.inverse_kinematics(qpos_action)
-
-        # self.physics.data.ctrl[:-1] = target_qpos[:-1]
-        # self.physics.data.ctrl[-1] = target_qpos[-1]
-        self.physics.data.ctrl[:-1] = target_qpos
-        self.physics.data.ctrl[-1] = action[-1]
-
+        self.physics.data.ctrl[:-1] = target_qpos[:-1]
+        self.physics.data.ctrl[-1] = target_qpos[-1]
         for _ in range(40):  # TODO: check!
             self.physics.step()
             self.physics.forward()
@@ -324,10 +316,10 @@ class PickCubeEnv(MujocoEnv):
 
         return obs, reward, terminated, truncated, info
 
-    def collect_data(self, options=None):
+    def collect_data(self):
         episode_idx = 0
-        for i in range(30):
-            _, info = self.reset()  # options[i])
+        for i in range(100):
+            _, info = self.reset()
             (
                 joint_traj,
                 actions,
@@ -335,24 +327,26 @@ class PickCubeEnv(MujocoEnv):
                 hand_eye_frames,
                 top_frames,
                 env_state,
+                ee_poses,
             ) = self.collect_data_sequence()
-            if (
-                self.physics.named.data.qpos["unnamed_model/obj_joint/"][2] < 0.1
-                or env_state < 3
-            ):
-                print("FAILED")
-                continue
-            else:
-                print("SUCCEED")
-                episode_idx += 1
+            # if (
+            #     self.physics.named.data.qpos["unnamed_model/obj_joint/"][2] < 0.1
+            #     or env_state < 3
+            # ):
+            #     print("FAILED")
+            #     continue
+            # else:
+            #     print("SUCCEED")
+            #     episode_idx += 1
             # 성공 trajectory 생성
             # ================================================================================================ #
             # 데이터 구조 설정
-
+            episode_idx += 1
             camera_names = ["hand_eye_cam", "top_cam"]
             data_dict = {
                 "/observations/qpos": [],
                 "/observations/qvel": [],
+                "/observations/tcp": [],
                 "/action": [],
             }
             for cam_name in camera_names:
@@ -360,6 +354,7 @@ class PickCubeEnv(MujocoEnv):
 
             data_dict["/observations/qpos"] = joint_traj
             data_dict["/observations/qvel"] = qvels
+            data_dict["/observations/tcp"] = ee_poses
             data_dict["/action"] = actions
             data_dict[f"/observations/images/hand_eye_cam"] = hand_eye_frames
             data_dict[f"/observations/images/top_cam"] = top_frames
@@ -397,11 +392,16 @@ class PickCubeEnv(MujocoEnv):
                     "qvel", (max_timesteps, 7), compression="gzip", compression_opts=9
                 )
                 action = root.create_dataset(
-                    "action", (max_timesteps, 8), compression="gzip", compression_opts=9
+                    "action", (max_timesteps, 7), compression="gzip", compression_opts=9
+                )
+                tcp = obs.create_dataset(
+                    "tcp", (max_timesteps, 8), compression="gzip", compression_opts=9
                 )
 
                 for name, array in data_dict.items():
                     root[name][...] = array
+
+            print(f"Episode {episode_idx} is saved")
 
     def collect_data_sequence(self):
 
@@ -411,6 +411,7 @@ class PickCubeEnv(MujocoEnv):
         joint_traj = []
         actions = []
         qvels = []
+        ee_poses = []
         hand_eye_frames = []
         top_frames = []
 
@@ -425,40 +426,12 @@ class PickCubeEnv(MujocoEnv):
         terminated = False
 
         while not terminated:
-            if env_state == 4:
+            if env_state == 1:
                 break
             grip_angle = 0
 
-            target_pos = self.ur5_robotiq.get_end_effector_pose()
-            target_pos.position[:] = self.first_target_pose.position
-
-            # 타겟 포즈 생성
-            if env_state == EnvState.APPROACH:
-                target_pos.position[2] = self.first_target_pose.position[2] + 0.1
-            elif env_state == EnvState.PICK:
-                target_pos.position[2] = self.first_target_pose.position[2]
-            elif env_state == EnvState.GRASP:
-                grip_angle = 250
-            elif env_state == EnvState.UP:
-                target_pos.position[2] = self.first_target_pose.position[2] + 0.4
-                grip_angle = 250
-
-            # target orientation
-            euler_ = euler.quat2euler(cur_qpos[-4:])
-            quat = euler.euler2quat(-0.0, 0.0, euler_[axis_num])  # twist
-
-            end_effector_pose = self.ur5_robotiq.get_end_effector_pose()
-            quat = get_best_orn_for_gripper(end_effector_pose.orientation, quat)
-
-            target_pos.orientation[:] = quat
-
-            # 경로 생성
-            if env_state != EnvState.GRASP:
-                waypoints = self.make_trajectory_by_pose(target_pos, 50)
-
-            else:
-                waypoints = self.close_gripper()
-
+            target_jnt = np.deg2rad([180, 0, -150, 30, 180, 180])
+            waypoints = self.make_jnt2jnt_trajectory(target_jnt, 0.3)
             waypoints_len = len(waypoints)
 
             for i in range(waypoints_len):
@@ -470,14 +443,7 @@ class PickCubeEnv(MujocoEnv):
                     _, _, terminated, _, _ = self.step(action)  # 50
 
                 else:
-                    tcp = self.ur5_robotiq.end_effector_pose
-                    pose = tcp.position
-                    quat = tcp.orientation
-
-                    tcp_np = np.append(pose, quat)
-
-                    action = np.append(tcp_np, grip_angle)
-                    # action = np.append(self.ur5_robotiq.joint_positions, grip_angle)
+                    action = np.append(self.ur5_robotiq.joint_positions, grip_angle)
                     _, _, terminated, _, _ = self.step(action)  # 5
 
                 current_grip_angle = (
@@ -488,17 +454,17 @@ class PickCubeEnv(MujocoEnv):
                     )
                     * DEG2CTRL
                 )
-
-                # # joint noise
-                # current_joints = self.ur5_robotiq.joint_positions
-                # joint_noise = np.random.normal(0, 1, 6)
-                # noise_joint = current_joints + joint_noise / 100
-                # joint_traj.append(np.append(noise_joint, current_grip_angle))
-
                 joint_traj.append(
                     np.append(self.ur5_robotiq.joint_positions, current_grip_angle)
                 )
                 qvels.append(np.append(self.ur5_robotiq.joint_velocities, 0))
+
+                ee = self.ur5_robotiq.get_end_effector_pose()
+                ee_pose = ee.position
+                ee_quat = ee.orientation
+                tcp = np.append(ee_pose, ee_quat)
+
+                ee_poses.append(np.append(tcp, 0))
 
                 if env_state != EnvState.GRASP:
                     actions.append(
@@ -506,8 +472,9 @@ class PickCubeEnv(MujocoEnv):
                     )  # grip_angle = 250
                 else:
                     actions.append(
-                        np.append(tcp_np, waypoints[i])
-                        # np.append(self.ur5_robotiq.joint_positions, waypoints[i]) # waypoints[i] = 0~ 250
+                        np.append(
+                            self.ur5_robotiq.joint_positions, waypoints[i]
+                        )  # waypoints[i] = 0~ 250
                     )
 
                 hand_eye_frames.append(
@@ -538,38 +505,27 @@ class PickCubeEnv(MujocoEnv):
             hand_eye_frames,
             top_frames,
             env_state,
+            ee_poses,
         )
 
     def make_trajectory(self, target_pose, time=0.01):
 
-        start = np.array(self.ur5_robotiq.joint_positions)
-
         target_joints = self.ur5_robotiq.inverse_kinematics(target_pose)
+
+        start = np.array(self.ur5_robotiq.joint_positions)
         end = target_joints
 
         trajectory = JointTrajectory(start, end, time, time / 0.002, 6)
 
         return trajectory
 
-    def make_trajectory_by_pose(self, target_pose, length):
+    def make_jnt2jnt_trajectory(self, target_jnt, time=0.01):
 
-        start_ee = self.ur5_robotiq.get_end_effector_pose()
+        start = np.array(self.ur5_robotiq.joint_positions)
+        end = target_jnt
 
-        start_pose = start_ee.position
-        start_quat = start_ee.orientation
+        trajectory = JointTrajectory(start, end, time, time / 0.002, 6)
 
-        start = np.append(start_pose, start_quat)
-
-        end_ee = target_pose
-        end_pose = end_ee.position
-        end_quat = end_ee.orientation
-
-        end = np.append(end_pose, end_quat)
-
-        # trajectory = JointTrajectory(start, end, 0.01, length, 6)
-        trajectory = interpolate_trajectory(start, end, 50)  # 이거 확인해봐야함
-
-        # print(" sample trajectory : ", trajectory)
         return trajectory
 
     def close_gripper(self):
