@@ -1,7 +1,7 @@
 <mujoco model="ur5e">
   <compiler angle="radian" meshdir="assets" autolimits="true" />
 
-  <option integrator="implicitfast" gravity = "0 0 981"/>
+  <option integrator="implicitfast" gravity = "0 0 -9.81"/>
 
   <default>
     <default class="ur5e">
