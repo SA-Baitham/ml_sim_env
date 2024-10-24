@@ -245,14 +245,14 @@ class PickCubeEnv(MujocoEnv):
         box_model = mjcf.from_xml_string(
             """<mujoco>
             <worldbody>
-                <body name="box" pos="0 0 0" >
+                <body name="red_cube" pos="0 0 0" >
                     <geom type="box" size="0.02 0.02 0.02" rgba="1 0 0 1" />
                 </body>
             </worldbody>
         </mujoco>"""
         )
         world_model.worldbody.attach(box_model).add(
-            "joint", type="free", damping=0.01, name="obj_joint"
+            "joint", type="free", damping=0.01, name="red_cube_jont"
         )
 
         # robot table
@@ -370,13 +370,15 @@ class PickCubeEnv(MujocoEnv):
         print(f"Random Init Pose: {random_pose}")
 
         if type(options) != type(None):
-            self.physics.named.data.qpos["unnamed_model/obj_joint/"] = options[
+            self.physics.named.data.qpos["unnamed_model/red_cube_jont/"] = options[
                 "generated_cube_pose"
             ]
             info["generated_cube_pose"] = options["generated_cube_pose"]
         else:
-            self.physics.named.data.qpos["unnamed_model/obj_joint/"] = random_pose
+            self.physics.named.data.qpos["unnamed_model/red_cube_jont/"] = random_pose
             info["generated_cube_pose"] = random_pose
+
+        print(f"cube qpos at reset : {self.physics.named.data.qpos['unnamed_model/red_cube_jont/']}")
 
         print("generated_cube_pose : ", info["generated_cube_pose"][0])
         # joints = np.array([-1.57, -1.57, -1.57, -1.57, 1.57, -1.57])
@@ -393,10 +395,10 @@ class PickCubeEnv(MujocoEnv):
 
         self.first_target_pose = Pose(
             position=np.array(
-                self.physics.named.data.qpos["unnamed_model/obj_joint/"][:3]
+                self.physics.named.data.qpos["unnamed_model/red_cube_jont/"][:3]
             ),
             orientation=np.array(
-                self.physics.named.data.qpos["unnamed_model/obj_joint/"][3:]
+                self.physics.named.data.qpos["unnamed_model/red_cube_jont/"][3:]
             ),
         )
         self.env_state = EnvState.APPROACH
@@ -429,7 +431,7 @@ class PickCubeEnv(MujocoEnv):
         obs["qpos"] = current_joints
         obs["images"] = images
 
-        if self.physics.named.data.qpos["unnamed_model/obj_joint/"][2] > 0.1:
+        if self.physics.named.data.qpos["unnamed_model/red_cube_jont/"][2] > 0.1:
             reward = 1
         else:
             reward = 0
@@ -439,7 +441,7 @@ class PickCubeEnv(MujocoEnv):
         return obs
 
     def compute_reward(self):
-        cube_z_position = self.physics.named.data.qpos["unnamed_model/obj_joint/"][2]
+        cube_z_position = self.physics.named.data.qpos["unnamed_model/red_cube_jont/"][2]
 
         if cube_z_position < 0.1:
             return 0
@@ -510,7 +512,7 @@ class PickCubeEnv(MujocoEnv):
                 env_state,
             ) = self.collect_data_sequence()
             if (
-                self.physics.named.data.qpos["unnamed_model/obj_joint/"][2] < 0.1
+                self.physics.named.data.qpos["unnamed_model/red_cube_jont/"][2] < 0.1
                 or env_state < 3
             ):
                 print("FAILED")
@@ -621,7 +623,8 @@ class PickCubeEnv(MujocoEnv):
         top_frames = []
 
         # 초기상태 - 현재 관절 위치
-        cur_qpos = self.physics.named.data.qpos["unnamed_model/obj_joint/"]
+        cur_qpos = self.physics.named.data.qpos["unnamed_model/red_cube_jont/"]
+        print(f"cube pose at collect_data_sequence (cur_qpos) : {cur_qpos}")
         rot_mat = euler.quat2mat(cur_qpos[-4:])
         for i, num in enumerate(rot_mat[2, :]):
             if (num <= -0.9) or (num >= 0.9):
