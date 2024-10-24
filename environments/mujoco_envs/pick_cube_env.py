@@ -497,7 +497,6 @@ class PickCubeEnv(MujocoEnv):
         with open(logs_path, 'w'):
             pass  # This will create or clean the file
         
-
         
         # for i in range(100):
         while episode_idx < 10:
