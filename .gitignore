@@ -2,6 +2,7 @@
 outputs
 dataset
 logs
+dataset_random_dynamics
 
 # Byte-compiled / optimized / DLL files
 *__pycache__/*
@@ -10,4 +11,3 @@ logs
 
 
 MUJOCO_LOG.TXT
-*dataset_random_dynamics*
