@@ -38,47 +38,64 @@ class PickCubeEnv(MujocoEnv):
         self.robot_random_dynamics = {
             # link masses
             "link mass": {
-                "body.shoulder_link|inertial.mass": (0.6, -0.6),
-                "body.upper_arm_link|inertial.mass": (0.6, -0.6),
-                "body.forearm_link|inertial.mass": (0.6, -0.6),
-                "body.wrist_1_link|inertial.mass": (0.6, -0.6),
-                "body.wrist_2_link|inertial.mass": (0.6, -0.6),
-                # "body.wrist_3_link|inertial.mass": (0.6, -0.6), # commented because this makes the mass of this range link negative and stops the simulation
+                "body.shoulder_link|inertial.mass": ((0.6, -0.6), "add"),
+                "body.upper_arm_link|inertial.mass": ((0.6, -0.6), "add"),
+                "body.forearm_link|inertial.mass": ((0.6, -0.6), "add"),
+                "body.wrist_1_link|inertial.mass": ((0.6, -0.6), "add"),
+                "body.wrist_2_link|inertial.mass": ((0.6, -0.6), "add"),
+                # "body.wrist_3_link|inertial.mass": ((0.6, -0.6), "add"), # commented because this makes the mass of this range link negative and stops the simulation
             },
 
             # joint damping
             "joint damping": {
-                "joint.shoulder_pan_joint|damping": (0, 2.99),
-                "joint.shoulder_lift_joint|damping": (0, 2.99),
-                "joint.elbow_joint|damping": (0, 2.99),
-                "joint.wrist_1_joint|damping": (0, 2.99),
-                "joint.wrist_2_joint|damping": (0, 2.99),
-                "joint.wrist_3_joint|damping": (0, 2.99),
+                "joint.shoulder_pan_joint|damping": ((0, 2.99), "add"),
+                "joint.shoulder_lift_joint|damping": ((0, 2.99), "add"),
+                "joint.elbow_joint|damping": ((0, 2.99), "add"),
+                "joint.wrist_1_joint|damping": ((0, 2.99), "add"),
+                "joint.wrist_2_joint|damping": ((0, 2.99), "add"),
+                "joint.wrist_3_joint|damping": ((0, 2.99), "add"),
             },
 
             # # actuator gain
             # # TODO select suitable ranges
-            # "actuator gain": {
-
-            # },
+            "actuator gain": {
+                "actuator.shoulder_pan|kp": ((0.5, 2), "mul"),
+                "actuator.shoulder_lift|kp": ((0.5, 2), "mul"),
+                "actuator.elbow|kp": ((0.5, 2), "mul"),
+                "actuator.wrist_1|kp": ((0.5, 2), "mul"),
+                "actuator.wrist_2|kp": ((0.5, 2), "mul"),
+                "actuator.wrist_3|kp": ((0.5, 2), "mul"),
+            },
 
             # # link inertia
             # # TODO select suitable ranges
-            # "link inertia": {
+            "link inertia": {
+                "body.base|inertial.diaginertia": ((np.repeat(1.1, 3), np.repeat(1.2, 3)), "mul"),
+                "body.shoulder_link|inertial.diaginertia": ((np.repeat(1.1, 3), np.repeat(1.2, 3)), "mul"),
+                "body.upper_arm_link|inertial.diaginertia": ((np.repeat(1.1, 3), np.repeat(1.2, 3)), "mul"),
+                "body.forearm_link|inertial.diaginertia": ((np.repeat(1.1, 3), np.repeat(1.2, 3)), "mul"),
+                "body.wrist_1_link|inertial.diaginertia": ((np.repeat(1.1, 3), np.repeat(1.2, 3)), "mul"),
+                "body.wrist_2_link|inertial.diaginertia": ((np.repeat(1.1, 3), np.repeat(1.2, 3)), "mul"),
+                "body.wrist_3_link|inertial.diaginertia": ((np.repeat(1.1, 3), np.repeat(1.2, 3)), "mul"),
 
-            # },
+            },
 
             # # joint stiffness
             # # TODO select suitable ranges
-            # "joint stiffness": {
-
-            # },
+            "joint stiffness": {
+                "joint.shoulder_pan_joint|stiffness": ((0, 0.01), "add"),
+                "joint.shoulder_lift_joint|stiffness": ((0, 0.01), "add"),
+                "joint.elbow_joint|stiffness": ((0, 0.01), "add"),
+                "joint.wrist_1_joint|stiffness": ((0, 0.01), "add"),
+                "joint.wrist_2_joint|stiffness": ((0, 0.01), "add"),
+                "joint.wrist_3_joint|stiffness": ((0, 0.01), "add"),
+            },
 
             # # gravity
             # # TODO select suitable ranges
-            # "gravity": {
-
-            # },
+            "gravity": {
+                "gravity": ((0.1, -0.1), "add"),
+            },
         }
 
         # TODO add random dynamics to object
@@ -156,17 +173,28 @@ class PickCubeEnv(MujocoEnv):
         for dynamics_type in random_dynamics_to_apply:
             
             if dynamics_type in model_random_dynamics:
-                for dynamics_element, _range in model_random_dynamics[dynamics_type].items():
-                    desc, props = dynamics_element.split("|")
-                    desc_type, desc_name = desc.split(".")
-                    props = props.split(".")
+                for dynamics_element, _range_operation in model_random_dynamics[dynamics_type].items():
+                    if dynamics_type == "gravity":
+                        default_value = model.option.gravity[2]
+                    else:
+                        desc, props = dynamics_element.split("|")
+                        desc_type, desc_name = desc.split(".")
+                        props = props.split(".")
+                        default_value = self.get_nested_property(model.find(desc_type, desc_name), props)
 
                     # set new value for this property/attribute
-                    default_value = self.get_nested_property(model.find(desc_type, desc_name), props)
+                    _range, operation = _range_operation
                     random_noise = np.random.uniform(*_range)
-                    new_value = default_value + random_noise
-                    print(f"Setting {dynamics_element} to {new_value}")
-                    self.set_nested_property(model.find(f"{desc_type}", f"{desc_name}"), props, new_value)
+                    if operation == "add":
+                        new_value = default_value + random_noise
+                    elif operation == "mul":
+                        new_value = default_value * random_noise
+                    # print(f"Setting {dynamics_element} to {new_value}")
+
+                    if dynamics_type == "gravity":
+                        model.option.gravity[2] = new_value
+                    else:
+                        self.set_nested_property(model.find(f"{desc_type}", f"{desc_name}"), props, new_value)
 
         return model
 
@@ -186,7 +214,6 @@ class PickCubeEnv(MujocoEnv):
         robot_model.worldbody.light.clear()
 
         # add random dynamics:
-        print("Applying random dynamics to robot")
         robot_model = self.add_random_dynamics(robot_model, self.robot_random_dynamics, self.random_dynamics_to_apply)
 
         attachment_site = robot_model.find("site", "attachment_site")
@@ -367,7 +394,7 @@ class PickCubeEnv(MujocoEnv):
             random_quat[3],
         ]
 
-        print(f"Random Init Pose: {random_pose}")
+        print(f"Random Init Pose (cm): {[int(100*val) for val in random_pose]}")
 
         if type(options) != type(None):
             self.physics.named.data.qpos["unnamed_model/red_cube_jont/"] = options[
@@ -378,9 +405,7 @@ class PickCubeEnv(MujocoEnv):
             self.physics.named.data.qpos["unnamed_model/red_cube_jont/"] = random_pose
             info["generated_cube_pose"] = random_pose
 
-        print(f"cube qpos at reset : {self.physics.named.data.qpos['unnamed_model/red_cube_jont/']}")
-
-        print("generated_cube_pose : ", info["generated_cube_pose"][0])
+        # print("generated_cube_pose : ", info["generated_cube_pose"][0])
         # joints = np.array([-1.57, -1.57, -1.57, -1.57, 1.57, -1.57])
 
         joints = np.deg2rad([-87.0, -64.0, -116.0, -63.0, 90.0, -90.0])
@@ -480,8 +505,8 @@ class PickCubeEnv(MujocoEnv):
 
         # Construct the dataset path
         dataset_path = os.path.join(
-            os.path.dirname(os.path.dirname(current_file_path)),  # Go back two directories
-            "dataset",
+            current_file_path,  # Go back two directories
+            "dataset_random_dynamics",
             "pick_cube",
             '+'.join(dynamic),  # Assuming dynamic is a list of strings
         )
@@ -501,7 +526,8 @@ class PickCubeEnv(MujocoEnv):
         
         
         # for i in range(100):
-        while episode_idx < 10:
+        while episode_idx < 1:
+            print(f"EPISODE: {episode_idx}")
             _, info = self.reset()  # options[i])
             (
                 joint_traj,
@@ -582,13 +608,16 @@ class PickCubeEnv(MujocoEnv):
                 if dynamics_group_name in self.models:
                     for dynamics_elements in dynamics_group.values():
                         for dynamics_element in dynamics_elements.keys():
-                            desc, props = dynamics_element.split("|")
-                            desc_type, desc_name = desc.split(".")
-                            props = props.split(".")
+                            if dynamics_element == "gravity":
+                                actual_value = self.models[dynamics_group_name].option.gravity[2]
+                            else:
+                                desc, props = dynamics_element.split("|")
+                                desc_type, desc_name = desc.split(".")
+                                props = props.split(".")
 
-                            actual_value = self.get_nested_property(
-                                self.models[dynamics_group_name].find(desc_type, desc_name), props
-                            )
+                                actual_value = self.get_nested_property(
+                                    self.models[dynamics_group_name].find(desc_type, desc_name), props
+                                )
                             random_dynamics_actual_values[dynamics_element] = actual_value
 
             log_message = f"Episode {episode_idx-1}:\n"
@@ -624,7 +653,6 @@ class PickCubeEnv(MujocoEnv):
 
         # 초기상태 - 현재 관절 위치
         cur_qpos = self.physics.named.data.qpos["unnamed_model/red_cube_jont/"]
-        print(f"cube pose at collect_data_sequence (cur_qpos) : {cur_qpos}")
         rot_mat = euler.quat2mat(cur_qpos[-4:])
         for i, num in enumerate(rot_mat[2, :]):
             if (num <= -0.9) or (num >= 0.9):
@@ -738,7 +766,7 @@ class PickCubeEnv(MujocoEnv):
                         camera_id=self.top_cam.id,
                     )
                 )
-                # print(f"is_render : {self.is_render}")
+
                 if self.is_render:
                     self.render()
             env_state += 1
@@ -781,7 +809,6 @@ class PickCubeEnv(MujocoEnv):
         # trajectory = JointTrajectory(start, end, 0.01, length, 6)
         trajectory = interpolate_trajectory(start, end, 50)  # 이거 확인해봐야함
 
-        # print(" sample trajectory : ", trajectory)
         return trajectory
 
     def close_gripper(self):
