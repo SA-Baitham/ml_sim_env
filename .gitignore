@@ -10,4 +10,4 @@ logs
 
 
 MUJOCO_LOG.TXT
-dataset*
+*dataset_random_dynamics*
