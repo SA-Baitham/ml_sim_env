@@ -1,8 +1,19 @@
-from environments.mujoco_envs.pick_cube_env import PickCubeEnv
+# from environments.mujoco_envs.pick_cube_env import PickCubeEnv
+from environments.mujoco_envs.pick_cube_env_complex import PickCubeEnv
 import json
 
 # combinations
-random_dynamics_list = [['clean'], ["link mass"], ["link inertia"], ["joint damping"], ["clean", "link mass"]]
+random_dynamics_list = [
+    ["link mass"],
+    ['clean'], 
+    ["link mass"], 
+    ["joint damping"], 
+    ["joint friction"], 
+    ["actuator gain"],
+    ["link inertia"],
+    ["joint stiffness"],
+    ['gravity'],
+    ]
 
 for dynamic in random_dynamics_list:
     print(f"####################### Collecting data for {dynamic} #######################")

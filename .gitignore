@@ -2,7 +2,7 @@
 outputs
 dataset
 logs
-dataset_random_dynamics
+dataset_random_dynamics*
 
 # Byte-compiled / optimized / DLL files
 *__pycache__/*

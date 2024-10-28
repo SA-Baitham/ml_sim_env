@@ -65,9 +65,15 @@ class MujocoRobot(RobotBase):
         pass
 
     def forward_kinematics(
-        self, joints: np.ndarray, return_ee_pose: bool = False
+    self, joints: np.ndarray, return_ee_pose: bool = False
     ) -> Optional[Pose]:
-        pass
+        physics = self.mj_physics.copy(share_model=True)
+        return self.set_joint_config(
+            joints, return_ee_pose=return_ee_pose, physics=physics
+        )
+    #     self, joints: np.ndarray, return_ee_pose: bool = False
+    # ) -> Optional[Pose]:
+    #     pass
 
     def inverse_kinematics(self, pose: Pose) -> Optional[np.ndarray]:
         pass

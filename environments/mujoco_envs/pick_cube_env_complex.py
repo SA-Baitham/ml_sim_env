@@ -8,8 +8,10 @@ from enum import IntEnum
 
 from .mujoco_ur5 import UR5Robotiq, DEG2CTRL
 from .mujoco_env import MujocoEnv
-from ..trajectory_generator import JointTrajectory, interpolate_trajectory
+from ..trajectory_generator import JointTrajectory
 from ..utils import Pose, get_best_orn_for_gripper
+
+from .mujoco_robot import MujocoRobot
 
 
 class EnvState(IntEnum):
@@ -32,66 +34,87 @@ class PickCubeEnv(MujocoEnv):
     ):
         self.random_dynamics_to_apply = random_dynamics_to_apply
         # naming convention for each property should be "<element_type>.<element_name>|<main_property_name>.<sub_property_name>.<sub_sub_property_name>...", and the value should be + and - range
+
         self.robot_random_dynamics = {
             # link masses
             "link mass": {
-                "body.shoulder_link|inertial.mass": ((0.6, -0.6), "add"),
-                "body.upper_arm_link|inertial.mass": ((0.6, -0.6), "add"),
-                "body.forearm_link|inertial.mass": ((0.6, -0.6), "add"),
-                "body.wrist_1_link|inertial.mass": ((0.6, -0.6), "add"),
-                "body.wrist_2_link|inertial.mass": ((0.6, -0.6), "add"),
-                # "body.wrist_3_link|inertial.mass": ((0.6, -0.6), "add"), # commented because this makes the mass of this range link negative and stops the simulation
+                "body.base|inertial.mass": ((-0.16106461, -0.16106461), "add"),
+                "body.shoulder_link|inertial.mass": ((-0.26556854, -0.26556854), "add"),
+                "body.upper_arm_link|inertial.mass": ((-0.18818701, -0.18818701), "add"),
+                "body.forearm_link|inertial.mass": ((-0.09126527, -0.09126527), "add"),
+                "body.wrist_1_link|inertial.mass": ((-0.17758173, -0.17758173), "add"),
+                "body.wrist_2_link|inertial.mass": ((-0.13924086, -0.13924086), "add"),
+                "body.wrist_3_link|inertial.mass": ((0.07808112, 0.07808112), "add"),
             },
 
             # joint damping
             "joint damping": {
-                "joint.shoulder_pan_joint|damping": ((0, 2.99), "add"),
-                "joint.shoulder_lift_joint|damping": ((0, 2.99), "add"),
-                "joint.elbow_joint|damping": ((0, 2.99), "add"),
-                "joint.wrist_1_joint|damping": ((0, 2.99), "add"),
-                "joint.wrist_2_joint|damping": ((0, 2.99), "add"),
-                "joint.wrist_3_joint|damping": ((0, 2.99), "add"),
+                "joint.shoulder_pan_joint|damping": ((0.03476166, 0.03476166), "add"),
+                "joint.shoulder_lift_joint|damping": ((2.40138833, 2.40138833), "add"),
+                "joint.elbow_joint|damping": ((1.30436714, 1.30436714), "add"),
+                "joint.wrist_1_joint|damping": ((0.39705312, 0.39705312), "add"),
+                "joint.wrist_2_joint|damping": ((0.27984147, 0.27984147), "add"),
+                "joint.wrist_3_joint|damping": ((2.02288293, 2.02288293), "add"),
             },
 
-            # # actuator gain
-            # # TODO select suitable ranges
-            "actuator gain": {
-                "actuator.shoulder_pan|kp": ((0.5, 2), "mul"),
-                "actuator.shoulder_lift|kp": ((0.5, 2), "mul"),
-                "actuator.elbow|kp": ((0.5, 2), "mul"),
-                "actuator.wrist_1|kp": ((0.5, 2), "mul"),
-                "actuator.wrist_2|kp": ((0.5, 2), "mul"),
-                "actuator.wrist_3|kp": ((0.5, 2), "mul"),
+        #    # joint friction
+            "joint friction": {
+                "joint.shoulder_pan_joint|frictionloss": ((0.54446054, 0.54446054), "add"),
+                "joint.shoulder_lift_joint|frictionloss": ((0.92181085, 0.92181085), "add"),
+                "joint.elbow_joint|frictionloss": ((0.46097485, 0.46097485), "add"),
+                "joint.wrist_1_joint|frictionloss": ((0.04338527, 0.04338527), "add"),
+                "joint.wrist_2_joint|frictionloss": ((0.57062232, 0.57062232), "add"),
+                "joint.wrist_3_joint|frictionloss": ((0.70414167, 0.70414167), "add"),
             },
+
+            # actuator gain
+            "actuator gain": {
+                "actuator.shoulder_pan|gainprm": ((578, 578), "add"),
+                "actuator.shoulder_lift|gainprm": ((-897, -897), "add"),
+                "actuator.elbow|gainprm": ((108, 108), "add"),
+                "actuator.wrist_1|gainprm": ((422, 422), "add"),
+                "actuator.wrist_2|gainprm": ((151, 151), "add"),
+                "actuator.wrist_3|gainprm": ((438, 438), "add"),
+            },
+
+            # # actuator gain (different type of gain)
+            # # TODO select suitable ranges
+            # "actuator gain": {
+            #     "actuator.shoulder_pan|kp": ((0.5, 2), "mul"),
+            #     "actuator.shoulder_lift|kp": ((0.5, 2), "mul"),
+            #     "actuator.elbow|kp": ((0.5, 2), "mul"),
+            #     "actuator.wrist_1|kp": ((0.5, 2), "mul"),
+            #     "actuator.wrist_2|kp": ((0.5, 2), "mul"),
+            #     "actuator.wrist_3|kp": ((0.5, 2), "mul"),
+            # },
 
             # # link inertia
             # # TODO select suitable ranges
             "link inertia": {
-                "body.base|inertial.diaginertia": ((np.repeat(1.1, 3), np.repeat(1.2, 3)), "mul"),
-                "body.shoulder_link|inertial.diaginertia": ((np.repeat(1.1, 3), np.repeat(1.2, 3)), "mul"),
-                "body.upper_arm_link|inertial.diaginertia": ((np.repeat(1.1, 3), np.repeat(1.2, 3)), "mul"),
-                "body.forearm_link|inertial.diaginertia": ((np.repeat(1.1, 3), np.repeat(1.2, 3)), "mul"),
-                "body.wrist_1_link|inertial.diaginertia": ((np.repeat(1.1, 3), np.repeat(1.2, 3)), "mul"),
-                "body.wrist_2_link|inertial.diaginertia": ((np.repeat(1.1, 3), np.repeat(1.2, 3)), "mul"),
-                "body.wrist_3_link|inertial.diaginertia": ((np.repeat(1.1, 3), np.repeat(1.2, 3)), "mul"),
-
+                "body.base|inertial.diaginertia": ((np.array([-0.00149805, -0.00149805, -0.00243292]), np.array([-0.00149805, -0.00149805, -0.00243292])), "add"),
+                "body.shoulder_link|inertial.diaginertia": ((np.array([0.00471176, 0.00471176, 0.00305628]), np.array([0.00471176, 0.00471176, 0.00305628])), "add"),
+                "body.upper_arm_link|inertial.diaginertia": ((np.array([-0.05434781, -0.05434781, -0.00613249]), np.array([-0.05434781, -0.05434781, -0.00613249])), "add"),
+                "body.forearm_link|inertial.diaginertia": ((np.array([0.01004752, 0.01004752, 0.0013196]), np.array([0.01004752, 0.01004752, 0.0013196])), "add"),
+                "body.wrist_1_link|inertial.diaginertia": ((np.array([0.0005251, 0.0005251, 0.00045009]), np.array([0.0005251, 0.0005251, 0.00045009])), "add"),
+                "body.wrist_2_link|inertial.diaginertia": ((np.array([-0.00112673, -0.00112673, -0.00096577]), np.array([-0.00112673, -0.00112673, -0.00096577])), "add"),
+                "body.wrist_3_link|inertial.diaginertia": ((np.array([-6.23071971e-05, -4.67237018e-05, -4.67237018e-05]), np.array([-6.23071971e-05, -4.67237018e-05, -4.67237018e-05])), "add"),
             },
 
             # # joint stiffness
             # # TODO select suitable ranges
             "joint stiffness": {
-                "joint.shoulder_pan_joint|stiffness": ((0, 0.01), "add"),
-                "joint.shoulder_lift_joint|stiffness": ((0, 0.01), "add"),
-                "joint.elbow_joint|stiffness": ((0, 0.01), "add"),
-                "joint.wrist_1_joint|stiffness": ((0, 0.01), "add"),
-                "joint.wrist_2_joint|stiffness": ((0, 0.01), "add"),
-                "joint.wrist_3_joint|stiffness": ((0, 0.01), "add"),
+                "joint.shoulder_pan_joint|stiffness": ((0.03024275, 0.03024275), "add"),
+                "joint.shoulder_lift_joint|stiffness": ((0.00107434, 0.00107434), "add"),
+                "joint.elbow_joint|stiffness": ((0.07393755, 0.07393755), "add"),
+                "joint.wrist_1_joint|stiffness": ((0.06627656, 0.06627656), "add"),
+                "joint.wrist_2_joint|stiffness": ((0.01816769, 0.01816769), "add"),
+                "joint.wrist_3_joint|stiffness": ((0.03330833, 0.03330833), "add"),
             },
 
             # # gravity
             # # TODO select suitable ranges
             "gravity": {
-                "gravity": ((0.1, -0.1), "add"),
+                "gravity": ((-0.2745999999999995, -0.2745999999999995), "add"),
             },
         }
 
@@ -141,7 +164,7 @@ class PickCubeEnv(MujocoEnv):
         for prop in props:
             obj = getattr(obj, prop)
         return obj
-
+    
     def add_random_dynamics(self, model, model_random_dynamics, random_dynamics_to_apply):
         """_summary_
 
@@ -206,7 +229,7 @@ class PickCubeEnv(MujocoEnv):
         robot_model = mjcf.from_path(
             os.path.join(
                 self.current_file_path,
-                "../assets/universal_robots_ur5e/ur5e.xml",
+                "../assets/universal_robots_ur5e/ur5e_complex.xml",
             ),
         )
         robot_model.worldbody.light.clear()
@@ -270,33 +293,33 @@ class PickCubeEnv(MujocoEnv):
         box_model = mjcf.from_xml_string(
             """<mujoco>
             <worldbody>
-                <body name="red_cube" pos="0 0 0" >
-                    <geom type="box" size="0.02 0.02 0.02" rgba="1 0 0 1" />
+                <body name="box" pos="0 0 0" >
+                    <geom type="box" size="0.015 0.015 0.015" rgba="1 0 0 1" />
                 </body>
             </worldbody>
         </mujoco>"""
         )
         world_model.worldbody.attach(box_model).add(
-            "joint", type="free", damping=0.01, name="red_cube_joint"
+            "joint", type="free", damping=0.01, name="obj_joint"
         )
 
-        # robot table
-        box_model2 = mjcf.from_xml_string(
-            """<mujoco>
-                <asset>
-                    <material name="shiny" specular="0.5" shininess="0.8" />
-                </asset>
-                <worldbody>
-                    <body name="box" pos="0 0 0">
-                        <geom type="box" size="0.255 0.255 0.145" rgba="0.2 0.2 0.2 1" material="shiny" />
-                    </body>
-                </worldbody>
-            </mujoco>"""
-        )
+        # # table under the robot
+        # box_model2 = mjcf.from_xml_string(
+        #     """<mujoco>
+        #         <asset>
+        #             <material name="shiny" specular="0.5" shininess="0.8" />
+        #         </asset>
+        #         <worldbody>
+        #             <body name="box" pos="0 0 0">
+        #                 <geom type="box" size="0.255 0.255 0.145" rgba="0.2 0.2 0.2 1" material="shiny" />
+        #             </body>
+        #         </worldbody>
+        #     </mujoco>"""
+        # )
 
-        spawn_pos = (0, 0, 0.0)
-        spawn_site = world_model.worldbody.add("site", pos=spawn_pos, group=3)
-        spawn_site.attach(box_model2)
+        # spawn_pos = (0, 0, 0.0)
+        # spawn_site = world_model.worldbody.add("site", pos=spawn_pos, group=3)
+        # spawn_site.attach(box_model2)
 
         # make a obj table
         obj_table = mjcf.from_xml_string(
@@ -345,7 +368,7 @@ class PickCubeEnv(MujocoEnv):
             "top_cam": top_cam,
             "wrist_cam": wrist_cam,
             "box": box_model,
-            "box2": box_model2,
+            # "box2": box_model2,
             "obj_table": obj_table,
         }
 
@@ -361,41 +384,50 @@ class PickCubeEnv(MujocoEnv):
         self.step_num = 0
         self.physics.reset()
 
-        # obj position limit
-        random_position = [
-            self.pose_rng.uniform(-0.10, 0.10),
-            self.pose_rng.uniform(0.45, 0.65),
-            self.pose_rng.uniform(0.1, 0.2),
-        ]
+        ############################################################3
+        # # obj position limit
+        # random_position = [
+        #     np.random.uniform(-0.10, 0.10),
+        #     np.random.uniform(0.45, 0.65),
+        #     np.random.uniform(0.1, 0.2),
+        # ]
 
-        random_quat = euler.euler2quat(
-            0,
-            0,
-            np.pi * self.pose_rng.uniform(-1, 1),
-        )
+        # random_quat = euler.euler2quat(
+        #     0,
+        #     0,
+        #     np.pi * np.random.uniform(-1, 1),
+        # )
+
+        # random_pose = [
+        #     random_position[0],
+        #     random_position[1],
+        #     random_position[2],
+        #     random_quat[0],
+        #     random_quat[1],
+        #     random_quat[2],
+        #     random_quat[3],
+        # ]
 
         random_pose = [
-            random_position[0],
-            random_position[1],
-            random_position[2],
-            random_quat[0],
-            random_quat[1],
-            random_quat[2],
-            random_quat[3],
+            0.06956875051242348,
+            0.5495662419585472,
+            0.12040477176070047,
+            0.7020425752804891,
+            0.0,
+            0.0,
+            0.712134974912438,
         ]
 
-        print(f"Random Init Pose (cm): {[int(100*val) for val in random_pose]}")
-
         if type(options) != type(None):
-            self.physics.named.data.qpos["unnamed_model/red_cube_joint/"] = options[
+            self.physics.named.data.qpos["unnamed_model/obj_joint/"] = options[
                 "generated_cube_pose"
             ]
             info["generated_cube_pose"] = options["generated_cube_pose"]
         else:
-            self.physics.named.data.qpos["unnamed_model/red_cube_joint/"] = random_pose
+            self.physics.named.data.qpos["unnamed_model/obj_joint/"] = random_pose
             info["generated_cube_pose"] = random_pose
 
-        joints = np.deg2rad([-87.0, -64.0, -116.0, -63.0, 90.0, -90.0])
+        joints = np.deg2rad([-180, -180, 150, -210, -180, -180])
 
         grip_angle = 0
 
@@ -407,10 +439,10 @@ class PickCubeEnv(MujocoEnv):
 
         self.first_target_pose = Pose(
             position=np.array(
-                self.physics.named.data.qpos["unnamed_model/red_cube_joint/"][:3]
+                self.physics.named.data.qpos["unnamed_model/obj_joint/"][:3]
             ),
             orientation=np.array(
-                self.physics.named.data.qpos["unnamed_model/red_cube_joint/"][3:]
+                self.physics.named.data.qpos["unnamed_model/obj_joint/"][3:]
             ),
         )
         self.env_state = EnvState.APPROACH
@@ -443,7 +475,7 @@ class PickCubeEnv(MujocoEnv):
         obs["qpos"] = current_joints
         obs["images"] = images
 
-        if self.physics.named.data.qpos["unnamed_model/red_cube_joint/"][2] > 0.1:
+        if self.physics.named.data.qpos["unnamed_model/obj_joint/"][2] > 0.1:
             reward = 1
         else:
             reward = 0
@@ -453,7 +485,7 @@ class PickCubeEnv(MujocoEnv):
         return obs
 
     def compute_reward(self):
-        cube_z_position = self.physics.named.data.qpos["unnamed_model/red_cube_joint/"][2]
+        cube_z_position = self.physics.named.data.qpos["unnamed_model/obj_joint/"][2]
 
         if cube_z_position < 0.1:
             return 0
@@ -461,16 +493,10 @@ class PickCubeEnv(MujocoEnv):
             return 1
 
     def step(self, action):
-        # target_qpos = action
+        target_qpos = action
 
-        qpos_action = Pose(position=action[:3], orientation=action[3:7])
-        target_qpos = self.ur5_robotiq.inverse_kinematics(qpos_action)
-
-        # self.physics.data.ctrl[:-1] = target_qpos[:-1]
-        # self.physics.data.ctrl[-1] = target_qpos[-1]
-        self.physics.data.ctrl[:-1] = target_qpos
-        self.physics.data.ctrl[-1] = action[-1]
-
+        self.physics.data.ctrl[:-1] = target_qpos[:-1]
+        self.physics.data.ctrl[-1] = target_qpos[-1]
         for _ in range(40):  # TODO: check!
             self.physics.step()
             self.physics.forward()
@@ -493,7 +519,7 @@ class PickCubeEnv(MujocoEnv):
         # Construct the dataset path
         dataset_path = os.path.join(
             current_file_path,
-            "dataset_random_dynamics",
+            "dataset_random_dynamics_complex",
             "pick_cube",
             '+'.join(dynamic),  # Assuming dynamic is a list of strings
         )
@@ -511,11 +537,8 @@ class PickCubeEnv(MujocoEnv):
         with open(logs_path, 'w'):
             pass  # This will create or clean the file
         
-        
-        # for i in range(100):
-        while episode_idx < 1:
-            print(f"EPISODE: {episode_idx}")
-            _, info = self.reset()  # options[i])
+        for i in range(1):
+            _, info = self.reset()
             (
                 joint_traj,
                 actions,
@@ -523,36 +546,48 @@ class PickCubeEnv(MujocoEnv):
                 hand_eye_frames,
                 top_frames,
                 env_state,
+                ee_poses,
             ) = self.collect_data_sequence()
-            if (
-                self.physics.named.data.qpos["unnamed_model/red_cube_joint/"][2] < 0.1
-                or env_state < 3
-            ):
-                print("FAILED")
-                continue
-            else:
-                print("SUCCEED")
-                episode_idx += 1
+            # if (
+            #     self.physics.named.data.qpos["unnamed_model/obj_joint/"][2] < 0.1
+            #     or env_state < 3
+            # ):
+            #     print("FAILED")
+            #     continue
+            # else:
+            #     print("SUCCEED")
+            #     episode_idx += 1
             # 성공 trajectory 생성
             # ================================================================================================ #
             # 데이터 구조 설정
-
+            episode_idx += 1
             camera_names = ["hand_eye_cam", "top_cam"]
             data_dict = {
                 "/observations/qpos": [],
                 "/observations/qvel": [],
+                "/observations/tcp": [],
                 "/action": [],
             }
             for cam_name in camera_names:
                 data_dict[f"/observations/images/{cam_name}"] = []
 
+            actions_tcp = [np.append(self.ur5_robotiq.forward_kinematics(a[:-1], True).flattened, a[-1]) for a in actions]
+
             data_dict["/observations/qpos"] = joint_traj
             data_dict["/observations/qvel"] = qvels
+            data_dict["/observations/tcp"] = ee_poses
             data_dict["/action"] = actions
+            data_dict["/action_tcp"] = actions_tcp
             data_dict[f"/observations/images/hand_eye_cam"] = hand_eye_frames
             data_dict[f"/observations/images/top_cam"] = top_frames
 
             max_timesteps = len(joint_traj)
+            # dataset_path = os.path.join(
+            #     self.current_file_path,
+            #     f"../../dataset/pick_cube/",
+            # )
+            # if not os.path.exists(dataset_path):
+            #     os.makedirs(dataset_path)
 
             with h5py.File(
                 os.path.join(dataset_path, f"episode_{episode_idx-1}.hdf5"),
@@ -579,7 +614,13 @@ class PickCubeEnv(MujocoEnv):
                     "qvel", (max_timesteps, 7), compression="gzip", compression_opts=9
                 )
                 action = root.create_dataset(
-                    "action", (max_timesteps, 8), compression="gzip", compression_opts=9
+                    "action", (max_timesteps, 7), compression="gzip", compression_opts=9
+                )
+                tcp = obs.create_dataset(
+                    "tcp", (max_timesteps, 8), compression="gzip", compression_opts=9
+                )
+                action_tcp = root.create_dataset(
+                    "action_tcp", (max_timesteps, 8), compression="gzip", compression_opts=9
                 )
 
                 for name, array in data_dict.items():
@@ -633,11 +674,12 @@ class PickCubeEnv(MujocoEnv):
         joint_traj = []
         actions = []
         qvels = []
+        ee_poses = []
         hand_eye_frames = []
         top_frames = []
 
         # 초기상태 - 현재 관절 위치
-        cur_qpos = self.physics.named.data.qpos["unnamed_model/red_cube_joint/"]
+        cur_qpos = self.physics.named.data.qpos["unnamed_model/obj_joint/"]
         rot_mat = euler.quat2mat(cur_qpos[-4:])
         for i, num in enumerate(rot_mat[2, :]):
             if (num <= -0.9) or (num >= 0.9):
@@ -647,40 +689,12 @@ class PickCubeEnv(MujocoEnv):
         terminated = False
 
         while not terminated:
-            if env_state == 4:
+            if env_state == 1:
                 break
             grip_angle = 0
 
-            target_pos = self.ur5_robotiq.get_end_effector_pose()
-            target_pos.position[:] = self.first_target_pose.position
-
-            # 타겟 포즈 생성
-            if env_state == EnvState.APPROACH:
-                target_pos.position[2] = self.first_target_pose.position[2] + 0.1
-            elif env_state == EnvState.PICK:
-                target_pos.position[2] = self.first_target_pose.position[2]
-            elif env_state == EnvState.GRASP:
-                grip_angle = 250
-            elif env_state == EnvState.UP:
-                target_pos.position[2] = self.first_target_pose.position[2] + 0.4
-                grip_angle = 250
-
-            # target orientation
-            euler_ = euler.quat2euler(cur_qpos[-4:])
-            quat = euler.euler2quat(-0.0, 0.0, euler_[axis_num])  # twist
-
-            end_effector_pose = self.ur5_robotiq.get_end_effector_pose()
-            quat = get_best_orn_for_gripper(end_effector_pose.orientation, quat)
-
-            target_pos.orientation[:] = quat
-
-            # 경로 생성
-            if env_state != EnvState.GRASP:
-                waypoints = self.make_trajectory_by_pose(target_pos, 50)
-
-            else:
-                waypoints = self.close_gripper()
-
+            target_jnt = np.deg2rad([180, 0, -150, 30, 180, 180])
+            waypoints = self.make_jnt2jnt_trajectory(target_jnt, 0.3)
             waypoints_len = len(waypoints)
 
             for i in range(waypoints_len):
@@ -692,14 +706,7 @@ class PickCubeEnv(MujocoEnv):
                     _, _, terminated, _, _ = self.step(action)  # 50
 
                 else:
-                    tcp = self.ur5_robotiq.end_effector_pose
-                    pose = tcp.position
-                    quat = tcp.orientation
-
-                    tcp_np = np.append(pose, quat)
-
-                    action = np.append(tcp_np, grip_angle)
-                    # action = np.append(self.ur5_robotiq.joint_positions, grip_angle)
+                    action = np.append(self.ur5_robotiq.joint_positions, grip_angle)
                     _, _, terminated, _, _ = self.step(action)  # 5
 
                 current_grip_angle = (
@@ -710,19 +717,17 @@ class PickCubeEnv(MujocoEnv):
                     )
                     * DEG2CTRL
                 )
-
-                # # joint noise
-                # current_joints = self.ur5_robotiq.joint_positions
-                # joint_noise = np.random.normal(0, 1, 6)
-                # noise_joint = current_joints + joint_noise/100
-                # joint_traj.append(
-                #     np.append(noise_joint, current_grip_angle)
-                # )
-
                 joint_traj.append(
                     np.append(self.ur5_robotiq.joint_positions, current_grip_angle)
                 )
                 qvels.append(np.append(self.ur5_robotiq.joint_velocities, 0))
+
+                ee = self.ur5_robotiq.get_end_effector_pose()
+                ee_pose = ee.position
+                ee_quat = ee.orientation
+                tcp = np.append(ee_pose, ee_quat)
+
+                ee_poses.append(np.append(tcp, 0))
 
                 if env_state != EnvState.GRASP:
                     actions.append(
@@ -730,8 +735,9 @@ class PickCubeEnv(MujocoEnv):
                     )  # grip_angle = 250
                 else:
                     actions.append(
-                        np.append(tcp_np, waypoints[i])
-                        # np.append(self.ur5_robotiq.joint_positions, waypoints[i]) # waypoints[i] = 0~ 250
+                        np.append(
+                            self.ur5_robotiq.joint_positions, waypoints[i]
+                        )  # waypoints[i] = 0~ 250
                     )
 
                 hand_eye_frames.append(
@@ -751,7 +757,6 @@ class PickCubeEnv(MujocoEnv):
                         camera_id=self.top_cam.id,
                     )
                 )
-
                 if self.is_render:
                     self.render()
             env_state += 1
@@ -763,36 +768,26 @@ class PickCubeEnv(MujocoEnv):
             hand_eye_frames,
             top_frames,
             env_state,
+            ee_poses,
         )
 
     def make_trajectory(self, target_pose, time=0.01):
 
-        start = np.array(self.ur5_robotiq.joint_positions)
-
         target_joints = self.ur5_robotiq.inverse_kinematics(target_pose)
+
+        start = np.array(self.ur5_robotiq.joint_positions)
         end = target_joints
 
         trajectory = JointTrajectory(start, end, time, time / 0.002, 6)
 
         return trajectory
 
-    def make_trajectory_by_pose(self, target_pose, length):
+    def make_jnt2jnt_trajectory(self, target_jnt, time=0.01):
 
-        start_ee = self.ur5_robotiq.get_end_effector_pose()
+        start = np.array(self.ur5_robotiq.joint_positions)
+        end = target_jnt
 
-        start_pose = start_ee.position
-        start_quat = start_ee.orientation
-
-        start = np.append(start_pose, start_quat)
-
-        end_ee = target_pose
-        end_pose = end_ee.position
-        end_quat = end_ee.orientation
-
-        end = np.append(end_pose, end_quat)
-
-        # trajectory = JointTrajectory(start, end, 0.01, length, 6)
-        trajectory = interpolate_trajectory(start, end, 50)  # 이거 확인해봐야함
+        trajectory = JointTrajectory(start, end, time, time / 0.002, 6)
 
         return trajectory
 
