@@ -6,3 +6,4 @@ transforms3d
 dm-control
 h5py
 numpy
+imageio

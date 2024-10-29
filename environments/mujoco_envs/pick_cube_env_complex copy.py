@@ -4,7 +4,6 @@ import h5py
 
 from dm_control import mjcf
 from transforms3d import euler
-from transforms3d import quaternions
 from enum import IntEnum
 
 from .mujoco_ur5 import UR5Robotiq, DEG2CTRL
@@ -13,7 +12,6 @@ from ..trajectory_generator import JointTrajectory
 from ..utils import Pose, get_best_orn_for_gripper
 
 from .mujoco_robot import MujocoRobot
-from PIL import Image
 
 
 class EnvState(IntEnum):
@@ -65,6 +63,7 @@ class PickCubeEnv(MujocoEnv):
 
         self.hand_eye_cam = self.physics.model.camera("ur5e/robotiq_2f85/d435i/rgb")
         self.top_cam = self.physics.model.camera("d435i/rgb")
+        self.render_cam = self.physics.model.camera("d435i/rgb")
         self.ur5_robotiq = UR5Robotiq(self.physics, 0, "ur5e")
         self.env_max_reward = 1
 
@@ -111,27 +110,6 @@ class PickCubeEnv(MujocoEnv):
         )
         attachment_site.attach(flange_model)
 
-        top_cam_pos = np.array([-1, -2, 3])
-        robot_pos = robot_model.find("body", "base").pos + np.array([0, 0, 0.145])
-
-        cam_to_robot = robot_pos - top_cam_pos
-
-        rotation_matrix = self.rotation_matrix_to_align_z_and_x(cam_to_robot, [0, 0, 1]) # rotate z axis to cam_to_robot
-        # z_rotation = euler.euler2mat(0, 0, np.deg2rad(180))
-        # rotation_matrix = np.dot(rotation_matrix, z_rotation)
-
-
-        # rotation_matrix * z_axis = cam_to_robot_normalized
-        # rotation_matrix * [0, 0, 1] = cam_to_robot_normalized
-        # rotation_matrix = cam_to_robot_normalized / [0, 0, 1]
-        # rotation_matrix = cam_to_robot_normalized
-
-        # z_rotation = euler.euler2mat(0, 0, np.deg2rad(-30))
-        # x_rotation = euler.euler2mat(np.deg2rad(-120), 0, 0)
-        # z2_rotation = euler.euler2mat(0, 0, np.deg2rad(180))
-        # final_rotation = np.dot(z_rotation, x_rotation)
-        # final_rotation = np.dot(final_rotation, z2_rotation)
-
         # call the top camera
         top_cam = mjcf.from_path(
             os.path.join(
@@ -140,14 +118,29 @@ class PickCubeEnv(MujocoEnv):
             ),
         )
         # TODO
-
         spawn_site = world_model.worldbody.add(
             "site",
-            pos=(top_cam_pos[0], top_cam_pos[1], top_cam_pos[2]),
-            quat=quaternions.mat2quat(rotation_matrix),
+            pos=(0.04, 0.53, 1.1),
+            quat=euler.euler2quat(np.pi, 0, -np.pi / 2),
             group=3,
         )
         spawn_site.attach(top_cam)
+
+        # call the top camera
+        render_cam = mjcf.from_path(
+            os.path.join(
+                self.current_file_path,
+                "../assets/realsense_d435i/d435i_with_cam.xml",
+            ),
+        )
+        # TODO
+        spawn_site = world_model.worldbody.add(
+            "site",
+            pos=(-1, -2, 3),
+            quat=euler.euler2quat(np.deg2rad(90), 0, np.deg2rad(90)),
+            group=3,
+        )
+        spawn_site.attach(render_cam)
 
         # hand eye camera / wrist camera
 
@@ -334,13 +327,19 @@ class PickCubeEnv(MujocoEnv):
         current_joints = np.append(self.ur5_robotiq.joint_positions, current_grip_angle)
 
         images["top_cam"] = self.physics.render(
-            height=480, width=640, depth=False, camera_id=self.top_cam.id
+            height=480 // 2, width=640 // 2, depth=False, camera_id=self.top_cam.id
         )
         images["hand_eye_cam"] = self.physics.render(
-            height=480,
-            width=640,
+            height=480 // 2,
+            width=640 // 2,
             depth=False,
             camera_id=self.hand_eye_cam.id,
+        )
+        images["render_cam"] = self.physics.render(
+            height=480 // 2,
+            width=640 // 2,
+            depth=False,
+            camera_id=self.render_cam.id,
         )
 
         obs["qpos"] = current_joints
@@ -408,7 +407,7 @@ class PickCubeEnv(MujocoEnv):
         with open(logs_path, 'w'):
             pass  # This will create or clean the file
         
-        for i in range(1):
+        for i in range(100):
             _, info = self.reset()
             (
                 joint_traj,
@@ -416,6 +415,7 @@ class PickCubeEnv(MujocoEnv):
                 qvels,
                 hand_eye_frames,
                 top_frames,
+                render_frames,
                 env_state,
                 ee_poses,
             ) = self.collect_data_sequence()
@@ -432,7 +432,7 @@ class PickCubeEnv(MujocoEnv):
             # ================================================================================================ #
             # 데이터 구조 설정
             episode_idx += 1
-            camera_names = ["hand_eye_cam", "top_cam"]
+            camera_names = ["hand_eye_cam", "top_cam", "render_cam"]
             data_dict = {
                 "/observations/qpos": [],
                 "/observations/qvel": [],
@@ -451,6 +451,7 @@ class PickCubeEnv(MujocoEnv):
             data_dict["/action_tcp"] = actions_tcp
             data_dict[f"/observations/images/hand_eye_cam"] = hand_eye_frames
             data_dict[f"/observations/images/top_cam"] = top_frames
+            data_dict[f"/observations/images/render_cam"] = render_frames
 
             max_timesteps = len(joint_traj)
             # dataset_path = os.path.join(
@@ -472,9 +473,9 @@ class PickCubeEnv(MujocoEnv):
                 for cam_name in camera_names:
                     _ = image.create_dataset(
                         cam_name,
-                        (max_timesteps, 480, 640, 3),
+                        (max_timesteps, 480 // 2, 640 // 2, 3),
                         dtype="uint8",
-                        chunks=(1, 480, 640, 3),
+                        chunks=(1, 480 // 2, 640 // 2, 3),
                         compression="gzip",
                         compression_opts=9,
                     )
@@ -529,22 +530,6 @@ class PickCubeEnv(MujocoEnv):
             with open(logs_path, 'a') as file:
                 file.write(log_message + '\n')
 
-            # save the top_frames into 
-            gif_path = os.path.join(dataset_path, f"episode_{episode_idx-1}.gif")
-            images = top_frames
-            # resize images to half their resolution
-            pil_images = [Image.fromarray(image) for image in images]
-
-            # Create the GIF with a specific duration (e.g., 0.1 seconds per frame)
-            pil_images[0].save(
-            gif_path,
-            save_all=True,
-            append_images=pil_images[1:],
-            duration=50,  # duration in milliseconds per frame
-            loop=0  # loop indefinitely
-            )
-
-
             # log_message = 
             # with open(logs_path, 'a') as file:
             #     file.write(log_message + '\n')
@@ -561,6 +546,7 @@ class PickCubeEnv(MujocoEnv):
         ee_poses = []
         hand_eye_frames = []
         top_frames = []
+        render_frames = []
 
         # 초기상태 - 현재 관절 위치
         cur_qpos = self.physics.named.data.qpos["unnamed_model/obj_joint/"]
@@ -626,8 +612,8 @@ class PickCubeEnv(MujocoEnv):
 
                 hand_eye_frames.append(
                     self.physics.render(
-                        height=480,
-                        width=640,
+                        height=480 // 2,
+                        width=640 // 2,
                         depth=False,
                         camera_id=self.hand_eye_cam.id,
                     )
@@ -635,10 +621,18 @@ class PickCubeEnv(MujocoEnv):
 
                 top_frames.append(
                     self.physics.render(
-                        height=480,
-                        width=640,
+                        height=480 // 2,
+                        width=640 // 2,
                         depth=False,
                         camera_id=self.top_cam.id,
+                    )
+                )
+                render_frames.append(
+                    self.physics.render(
+                        height=480 // 2,
+                        width=640 // 2,
+                        depth=False,
+                        camera_id=self.render_cam.id,
                     )
                 )
                 if self.is_render:
@@ -651,6 +645,7 @@ class PickCubeEnv(MujocoEnv):
             qvels,
             hand_eye_frames,
             top_frames,
+            render_frames,
             env_state,
             ee_poses,
         )
@@ -777,36 +772,3 @@ class PickCubeEnv(MujocoEnv):
                         self.set_nested_property(model.find(f"{desc_type}", f"{desc_name}"), props, new_value)
 
         return model
-    
-    def rotation_matrix_to_align_z_and_x(self, v_prime, plane_normal):
-        """
-        Calculate the rotation matrix R that aligns the z-axis with v_prime and the x-axis parallel to the plane.
-        
-        Parameters:
-        v_prime (numpy array): Target direction for the z-axis (3D)
-        plane_normal (numpy array): Normal vector of the plane (3D)
-        
-        Returns:
-        R (numpy array): Rotation matrix (3x3)
-        """
-        
-        # Normalize the vectors
-        v_prime = v_prime / np.linalg.norm(v_prime)
-        plane_normal = plane_normal / np.linalg.norm(plane_normal)
-        
-        # Ensure v_prime is not collinear with plane_normal
-        if np.allclose(v_prime, plane_normal) or np.allclose(v_prime, -plane_normal):
-            raise ValueError("v_prime cannot be collinear with the plane normal.")
-        
-        # Calculate the x-axis (orthogonal to both v_prime and plane_normal)
-        x_axis = np.cross(plane_normal, v_prime)
-        x_axis = x_axis / np.linalg.norm(x_axis)
-        
-        # Calculate the y-axis (orthogonal to both x_axis and v_prime)
-        y_axis = np.cross(v_prime, x_axis)
-        y_axis = y_axis / np.linalg.norm(y_axis)
-        
-        # Construct the rotation matrix
-        R = np.array([x_axis, y_axis, v_prime]).T
-        
-        return R
