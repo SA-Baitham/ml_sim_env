@@ -32,12 +32,12 @@ class PickCubeEnv(MujocoEnv):
         time_limit: float = float("inf"),
         step_limit: int = 180,
         is_render: bool = False,
-        random_dynamics_to_apply: list = [],
-        random_dynamics_config: dict = {},
+        randomizations_to_apply: dict = {},
+        configs: dict = {},
     ):
-        self.random_dynamics_to_apply = random_dynamics_to_apply
-
-        self.robot_random_dynamics = random_dynamics_config
+        self.configs = configs
+        self.randomizations_to_apply = randomizations_to_apply
+        self.random_dynamics = configs["random_dynamics"]
 
         # TODO add random dynamics to object (if needed)
         self.object_random_dynamics = {}
@@ -46,11 +46,23 @@ class PickCubeEnv(MujocoEnv):
         self.world_random_dynamics = {}
 
         self.random_dynamics_groups = { 
-            "robot": self.robot_random_dynamics,
+            "robot": self.random_dynamics,
             "box": self.object_random_dynamics,
             "world": self.world_random_dynamics,
         }
-    
+
+        self.seed = seed
+        self.control_dt = control_dt
+        self.physics_dt = physics_dt
+        self.time_limit = time_limit
+        self.step_limit = step_limit
+        self.is_render = is_render
+
+        # RNG seed for the pose so that it's not affected by other random processes
+        self.pose_rng = np.random.default_rng(42)
+        np.random.seed(42)
+
+    def super_init(self, seed, control_dt, physics_dt, time_limit, step_limit, is_render):
         super().__init__(
             seed=seed,
             control_dt=control_dt,
@@ -59,9 +71,6 @@ class PickCubeEnv(MujocoEnv):
             step_limit=step_limit,
             is_render=is_render,
         )
-        # RNG seed for the pose so that it's not affected by other random processes
-        self.pose_rng = np.random.default_rng(42)
-        np.random.seed(42)
 
         self.hand_eye_cam = self.physics.model.camera("ur5e/robotiq_2f85/d435i/rgb")
         self.top_cam = self.physics.model.camera("d435i/rgb")
@@ -69,11 +78,9 @@ class PickCubeEnv(MujocoEnv):
         self.env_max_reward = 1
 
     def load_models(self):
+        print("Loading models...")
         self.current_file_path = os.path.dirname(os.path.realpath(__file__))
-        # call the default world
-        world_model = mjcf.from_path(
-            os.path.join(self.current_file_path, "../assets/default_world.xml")
-        )
+
         # call the robot
         robot_model = mjcf.from_path(
             os.path.join(
@@ -84,7 +91,7 @@ class PickCubeEnv(MujocoEnv):
         robot_model.worldbody.light.clear()
 
         # add random dynamics:
-        robot_model = self.add_random_dynamics(robot_model, self.robot_random_dynamics, self.random_dynamics_to_apply)
+        robot_model = self.add_random_dynamics(robot_model, self.random_dynamics, self.randomizations_to_apply)
 
         attachment_site = robot_model.find("site", "attachment_site")
         assert attachment_site is not None
@@ -112,25 +119,11 @@ class PickCubeEnv(MujocoEnv):
         attachment_site.attach(flange_model)
 
         top_cam_pos = np.array([-1, -2, 3])
-        robot_pos = robot_model.find("body", "base").pos + np.array([0, 0, 0.145])
+        robot_pos = robot_model.find("body", "base").pos + np.array([0, 0, 0.2])
 
         cam_to_robot = robot_pos - top_cam_pos
 
         rotation_matrix = self.rotation_matrix_to_align_z_and_x(cam_to_robot, [0, 0, 1]) # rotate z axis to cam_to_robot
-        # z_rotation = euler.euler2mat(0, 0, np.deg2rad(180))
-        # rotation_matrix = np.dot(rotation_matrix, z_rotation)
-
-
-        # rotation_matrix * z_axis = cam_to_robot_normalized
-        # rotation_matrix * [0, 0, 1] = cam_to_robot_normalized
-        # rotation_matrix = cam_to_robot_normalized / [0, 0, 1]
-        # rotation_matrix = cam_to_robot_normalized
-
-        # z_rotation = euler.euler2mat(0, 0, np.deg2rad(-30))
-        # x_rotation = euler.euler2mat(np.deg2rad(-120), 0, 0)
-        # z2_rotation = euler.euler2mat(0, 0, np.deg2rad(180))
-        # final_rotation = np.dot(z_rotation, x_rotation)
-        # final_rotation = np.dot(final_rotation, z2_rotation)
 
         # call the top camera
         top_cam = mjcf.from_path(
@@ -140,6 +133,40 @@ class PickCubeEnv(MujocoEnv):
             ),
         )
         # TODO
+
+        # call the default world
+        world_model = mjcf.from_path(
+            os.path.join(self.current_file_path, "../assets/default_world.xml")
+        )
+
+        # add light to the world
+        if "light_source" in self.randomizations_to_apply:
+            num_light_sources = np.random.randint(1, self.configs["num_light_sources"])
+            for light_i in range(num_light_sources):
+                print("Adding light source")
+                # random light position
+                light_pos_x = np.random.uniform(-10, 10)
+                light_pos_y = np.random.uniform(-10, 10)
+                light_pos_z = np.random.uniform(5, 20)
+                light_pos = np.array([light_pos_x, light_pos_y, light_pos_z])
+
+                print(f"Light source {light_i} position: {light_pos}")
+                
+                # light direction (pointing to the center of the world)
+                light_pos_normalized = -light_pos / np.linalg.norm(light_pos)
+
+                random_diffuse = np.random.uniform(0.0, 1, 3)
+                random_specular = np.random.uniform(0.0, 1, 3)
+
+                world_model.worldbody.add(
+                    "light",
+                    name=f"light{light_i}",
+                    pos=f"{light_pos_x} {light_pos_y} {light_pos_z}",
+                    dir=f"{light_pos_normalized[0]} {light_pos_normalized[1]} {light_pos_normalized[2]}",
+                    diffuse=f"{random_diffuse[0]} {random_diffuse[1]} {random_diffuse[2]}",
+                    specular=f"{random_specular[0]} {random_specular[1]} {random_specular[2]}",
+                    castshadow="true",
+                )
 
         spawn_site = world_model.worldbody.add(
             "site",
@@ -161,11 +188,19 @@ class PickCubeEnv(MujocoEnv):
         wrist_cam_mount_site.attach(wrist_cam)
 
         # Red cube for picking
+        ################## cube color ############################
+        if "object_color" in self.randomizations_to_apply:
+            color = np.random.randint(0, 255, 3)
+            adj_color = [round(x / 255, 3) for x in color]
+            rgba_color = np.append(adj_color, 1)
+        else:
+            rgba_color = "1.0 0.0 0.0 1"
+
         box_model = mjcf.from_xml_string(
-            """<mujoco>
+            f"""<mujoco>
             <worldbody>
                 <body name="box" pos="0 0 0" >
-                    <geom type="box" size="0.015 0.015 0.015" rgba="1 0 0 1" />
+                    <geom type="box" size="0.015 0.015 0.015" rgba="{rgba_color}" />
                 </body>
             </worldbody>
         </mujoco>"""
@@ -174,7 +209,7 @@ class PickCubeEnv(MujocoEnv):
             "joint", type="free", damping=0.01, name="obj_joint"
         )
 
-        # # table under the robot
+        # table under the robot
         # box_model2 = mjcf.from_xml_string(
         #     """<mujoco>
         #         <asset>
@@ -192,12 +227,19 @@ class PickCubeEnv(MujocoEnv):
         # spawn_site = world_model.worldbody.add("site", pos=spawn_pos, group=3)
         # spawn_site.attach(box_model2)
 
+        if "table_color" in self.randomizations_to_apply:
+            color = np.random.randint(0, 255, 3)
+            adj_color = [round(x / 255, 3) for x in color]
+            rgba_color = np.append(adj_color, 1)
+        else:
+            rgba_color = "0.239 0.262 0.309 1"
+
         # make a obj table
         obj_table = mjcf.from_xml_string(
-            """<mujoco>
+            f"""<mujoco>
                 <worldbody>
                     <body name="box" pos="0 0 0">
-                        <geom type="box" size="0.33 0.33 0.001" rgba="0.239 0.262 0.309 1" />
+                        <geom type="box" size="0.33 0.33 0.001" rgba="{rgba_color}" />
                     </body>
                 </worldbody>
             </mujoco>"""
@@ -207,25 +249,28 @@ class PickCubeEnv(MujocoEnv):
         spawn_site = world_model.worldbody.add("site", pos=spawn_pos, group=3)
         spawn_site.attach(obj_table)
 
-        # # floor pattern
-        # floor_pattern = mjcf.from_xml_string(
-        #     """<mujoco>
-        #         <asset>
-        #             <texture name="floor_texture" type="2d" file="/home/plaif_train/syzy/motion/mo_plaif_act/environments/assets/source/floor2.png" gridsize="4 3" />
-        #             <material name="box_material" texture="floor_texture" />
-        #         </asset>
-        #         <worldbody>
-        #             <body name="box" pos="0 0 0">
-        #                 <geom type="box" size="0.54 0.72 0.0001" material="box_material" />
-        #             </body>
-        #         </worldbody>
-        #     </mujoco>
+        # Add real floor
+        if "real_floor" in self.randomizations_to_apply:
+            current_file_path = os.getcwd()
+            floor_texture_path = os.path.join(current_file_path, "environments/assets/source/floor2.png")
+            floor_pattern = mjcf.from_xml_string(
+                f"""<mujoco>
+                    <asset>
+                        <texture name="floor_texture" type="2d" file="{floor_texture_path}" gridsize="4 3" />
+                        <material name="box_material" texture="floor_texture" />
+                    </asset>
+                    <worldbody>
+                        <body name="box" pos="0 0 0">
+                            <geom type="box" size="0.54 0.72 0.0001" material="box_material" />
+                        </body>
+                    </worldbody>
+                </mujoco>
 
-        #     """
-        # )
-        # spawn_pos = (-0.05, 0.55, 0.0)
-        # spawn_site = world_model.worldbody.add("site", pos=spawn_pos, group=3)
-        # spawn_site.attach(floor_pattern)
+                """
+            )
+            spawn_pos = (-0.05, 0.55, 0.0)
+            spawn_site = world_model.worldbody.add("site", pos=spawn_pos, group=3)
+            spawn_site.attach(floor_pattern)
 
         # Set the robot position
         spawn_pos = (0, 0, 0.145)
@@ -249,7 +294,15 @@ class PickCubeEnv(MujocoEnv):
 
     def reset(self, options=None):
         # to reset the environment with different dynamics
-        self.load_models()
+        self.super_init(
+            seed=self.seed,
+            control_dt=self.control_dt,
+            physics_dt=self.physics_dt,
+            time_limit=self.time_limit,
+            step_limit=self.step_limit,
+            is_render=self.is_render,
+        )
+        # self.physics = self.load_models()
 
         info = {}
         self.step_num = 0
@@ -382,7 +435,7 @@ class PickCubeEnv(MujocoEnv):
 
         return obs, reward, terminated, truncated, info
 
-    def collect_data(self, dynamic=None, options=None):
+    def collect_data(self, options=None):
         episode_idx = 0
 
         current_file_path = os.getcwd()
@@ -392,7 +445,7 @@ class PickCubeEnv(MujocoEnv):
             current_file_path,
             "dataset_random_dynamics_complex",
             "pick_cube",
-            '+'.join(dynamic),  # Assuming dynamic is a list of strings
+            ' + '.join(self.randomizations_to_apply),  # Assuming dynamic is a list/dict of strings
         )
 
         logs_path = os.path.join(dataset_path, 'logs.txt')
@@ -408,7 +461,7 @@ class PickCubeEnv(MujocoEnv):
         with open(logs_path, 'w'):
             pass  # This will create or clean the file
         
-        for i in range(1):
+        for i in range(100):
             _, info = self.reset()
             (
                 joint_traj,
@@ -529,26 +582,31 @@ class PickCubeEnv(MujocoEnv):
             with open(logs_path, 'a') as file:
                 file.write(log_message + '\n')
 
-            # save the top_frames into 
-            gif_path = os.path.join(dataset_path, f"episode_{episode_idx-1}.gif")
-            images = top_frames
-            # resize images to half their resolution
-            pil_images = [Image.fromarray(image) for image in images]
+            if self.configs["save_gifs"]:
+                print("Saving gif file...")
+                # save the top_frames into 
+                gif_path = os.path.join(dataset_path, f"episode_{episode_idx-1}.gif")
+                images = top_frames
+                # resize images to half their resolution
+                pil_images = [Image.fromarray(image) for image in images]
 
-            # Create the GIF with a specific duration (e.g., 0.1 seconds per frame)
-            pil_images[0].save(
-            gif_path,
-            save_all=True,
-            append_images=pil_images[1:],
-            duration=50,  # duration in milliseconds per frame
-            loop=0  # loop indefinitely
-            )
+                # Create the GIF with a specific duration (e.g., 0.1 seconds per frame)
+                pil_images[0].save(
+                gif_path,
+                save_all=True,
+                append_images=pil_images[1:],
+                duration=50,  # duration in milliseconds per frame
+                loop=0  # loop indefinitely
+                )
 
 
             # log_message = 
             # with open(logs_path, 'a') as file:
             #     file.write(log_message + '\n')
             print(f"Episode {episode_idx} is saved")
+            
+            # close the environment
+            self.close()
 
     def collect_data_sequence(self):
 
@@ -725,7 +783,7 @@ class PickCubeEnv(MujocoEnv):
                     "dynamics_type": {
                         "element_type.element_name|main_property_name.sub_property_name": [
                             [lower_range, upper_range],  # Range for random noise
-                            "operation"  # Operation to apply: "add" or "mul"
+                            "operation"  # Operation to apply: "add", "mul", or "set"
                         ],
                         ...
                     },
@@ -769,6 +827,8 @@ class PickCubeEnv(MujocoEnv):
                         new_value = default_value + random_noise
                     elif operation == "mul":
                         new_value = default_value * random_noise
+                    elif operation == "set":
+                        new_value = random_noise
                     # print(f"Setting {dynamics_element} to {new_value}")
 
                     if dynamics_type == "gravity":

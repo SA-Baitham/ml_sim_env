@@ -49,3 +49,6 @@ ERROR: could not initialize GLFW
 Wed Oct 23 15:50:24 2024
 ERROR: could not initialize GLFW
 
+Wed Oct 30 12:01:23 2024
+ERROR: mjv_updateCamera: fixed camera id is outside valid range
+
