@@ -79,7 +79,6 @@ class PickCubeEnv(MujocoEnv):
         self.env_max_reward = 1
 
     def load_models(self):
-        print("Loading models...")
         self.current_file_path = os.path.dirname(os.path.realpath(__file__))
 
         # call the robot
@@ -146,14 +145,11 @@ class PickCubeEnv(MujocoEnv):
         if "light_source" in self.randomizations_to_apply:
             num_light_sources = np.random.randint(1, self.configs["num_light_sources"])
             for light_i in range(num_light_sources):
-                print("Adding light source")
                 # random light position
                 light_pos_x = np.random.uniform(-10, 10)
                 light_pos_y = np.random.uniform(-10, 10)
                 light_pos_z = np.random.uniform(5, 20)
                 light_pos = np.array([light_pos_x, light_pos_y, light_pos_z])
-
-                print(f"Light source {light_i} position: {light_pos}")
                 
                 # light direction (pointing to the center of the world)
                 light_pos_normalized = -light_pos / np.linalg.norm(light_pos)
@@ -755,7 +751,7 @@ class PickCubeEnv(MujocoEnv):
                     )
                 )
 
-                if self.is_render:
+                if self.configs["render"]:
                     self.render()
             env_state += 1
 
@@ -765,6 +761,7 @@ class PickCubeEnv(MujocoEnv):
             qvels,
             hand_eye_frames,
             top_frames,
+            render_frames,
             env_state,
         )
 
