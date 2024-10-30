@@ -6,11 +6,11 @@ num_light_sources: 5 # Number of light sources to add for light_source randomiza
 render_cam_pos: [-1, -2, 3] # Camera used for gifs
 
 randomization_list: [
-    # {'clean'}, 
+    {'clean'}, 
     # Dynamic parameters
-    # {"link_mass"}, 
-    # {"joint_damping"}, 
-    # {"joint_friction"}, 
+    {"link_mass"}, 
+    {"joint_damping"}, 
+    {"joint_friction"}, 
     {"actuator_gain"},
     {"link_inertia"},
     {"joint_stiffness"},
@@ -31,149 +31,143 @@ randomization_list: [
 # random dynamics configs
 random_dynamics:
   link_mass: # dynamic parameters
-    # Link masses
     body.base|inertial.mass: # part_type.part_name|property1.property2.etc
-      - [-0.16106461, -0.16106461]  # Lower and upper bounds for random noise value (uniformly selected)
+      - [-0.6, 0.6]  # Lower and upper bounds for random noise value (uniformly selected)
       - add  # Operation to apply: add or mul. add will add random noise to the original value, mul will multiply the original value by the random noise
     body.shoulder_link|inertial.mass:
-      - [-0.26556854, -0.26556854]
+      - [-0.6, 0.6]
       - add
     body.upper_arm_link|inertial.mass:
-      - [-0.18818701, -0.18818701]
+      - [-0.6, 0.6]
       - add
     body.forearm_link|inertial.mass:
-      - [-0.09126527, -0.09126527]
+      - [-0.6, 0.6]
       - add
     body.wrist_1_link|inertial.mass:
-      - [-0.17758173, -0.17758173]
+      - [-0.6, 0.6]
       - add
     body.wrist_2_link|inertial.mass:
-      - [-0.13924086, -0.13924086]
+      - [-0.6, 0.6]
       - add
     body.wrist_3_link|inertial.mass:
-      - [0.07808112, 0.07808112]
+      - [-0.6, 0.6]
       - add
 
   joint_damping:
-    # Joint damping
     joint.shoulder_pan_joint|damping:
-      - [0.03476166, 0.03476166]
+      - [0, 2.99]
       - add
     joint.shoulder_lift_joint|damping:
-      - [2.40138833, 2.40138833]
+      - [0, 2.99]
       - add
     joint.elbow_joint|damping:
-      - [1.30436714, 1.30436714]
+      - [0, 2.99]
       - add
     joint.wrist_1_joint|damping:
-      - [0.39705312, 0.39705312]
+      - [0, 2.99]
       - add
     joint.wrist_2_joint|damping:
-      - [0.27984147, 0.27984147]
+      - [0, 2.99]
       - add
     joint.wrist_3_joint|damping:
-      - [2.02288293, 2.02288293]
+      - [0, 2.99]
       - add
 
   joint_friction:
-    # Joint friction
     joint.shoulder_pan_joint|frictionloss:
-      - [0.54446054, 0.54446054]
+      - [0, 1]
       - add
     joint.shoulder_lift_joint|frictionloss:
-      - [0.92181085, 0.92181085]
+      - [0, 1]
       - add
     joint.elbow_joint|frictionloss:
-      - [0.46097485, 0.46097485]
+      - [0, 1]
       - add
     joint.wrist_1_joint|frictionloss:
-      - [0.04338527, 0.04338527]
+      - [0, 1]
       - add
     joint.wrist_2_joint|frictionloss:
-      - [0.57062232, 0.57062232]
+      - [0, 1]
       - add
     joint.wrist_3_joint|frictionloss:
-      - [0.70414167, 0.70414167]
+      - [0, 1]
       - add
 
   actuator_gain:
-    # Actuator gain
     # actuator.shoulder_pan|gainprm:
     actuator.shoulder_pan|kp:
-      - [578, 578]
-      - add
+      - [0.5, 2]
+      - mul
     # actuator.shoulder_lift|gainprm:
     actuator.shoulder_lift|kp:
-      - [-897, -897]
-      - add
+      - [0.57,297]
+      - mul
     # actuator.elbow|gainprm:
     actuator.elbow|kp:
-      - [108, 108]
-      - add
+      - [0.5, 2]
+      - mul
     # actuator.wrist_1|gainprm:
     actuator.wrist_1|kp:
-      - [422, 422]
-      - add
+      - [0.5, 2]
+      - mul
     # actuator.wrist_2|gainprm:
     actuator.wrist_2|kp:
-      - [151, 151]
-      - add
+      - [0.5, 2]
+      - mul
     # actuator.wrist_3|gainprm:
     actuator.wrist_3|kp:
-      - [438, 438]
-      - add
+      - [0.5, 2]
+      - mul
 
   link_inertia:
-    # Link inertia
     body.base|inertial.diaginertia:
-      - [[-0.00149805, -0.00149805, -0.00243292], [-0.00149805, -0.00149805, -0.00243292]]
-      - add
+      - [0.5, 1.5]
+      - mul
     body.shoulder_link|inertial.diaginertia:
-      - [[0.00471176, 0.00471176, 0.00305628], [0.00471176, 0.00471176, 0.00305628]]
-      - add
+      - [0.5, 1.5]
+      - mul
     body.upper_arm_link|inertial.diaginertia:
-      - [[-0.05434781, -0.05434781, -0.00613249], [-0.05434781, -0.05434781, -0.00613249]]
-      - add
+      - [0.5, 1.5]
+      - mul
     body.forearm_link|inertial.diaginertia:
-      - [[0.01004752, 0.01004752, 0.0013196], [0.01004752, 0.01004752, 0.0013196]]
-      - add
+      - [0.5, 1.5]
+      - mul
     body.wrist_1_link|inertial.diaginertia:
-      - [[0.0005251, 0.0005251, 0.00045009], [0.0005251, 0.0005251, 0.00045009]]
-      - add
+      - [0.5, 1.5]
+      - mul
     body.wrist_2_link|inertial.diaginertia:
-      - [[-0.00112673, -0.00112673, -0.00096577], [-0.00112673, -0.00112673, -0.00096577]]
-      - add
+      - [0.5, 1.5]
+      - mul
     body.wrist_3_link|inertial.diaginertia:
-      - [[-6.23071971e-05, -4.67237018e-05, -4.67237018e-05], [-6.23071971e-05, -4.67237018e-05, -4.67237018e-05]]
-      - add
+      - [0.5, 1.5]
+      - mul
 
   joint_stiffness:
-    # Joint stiffness
     joint.shoulder_pan_joint|stiffness:
-      - [0.03024275, 0.03024275]
+      - [0, 0.01]
       - add
     joint.shoulder_lift_joint|stiffness:
-      - [0.00107434, 0.00107434]
+      - [0, 0.01]
       - add
     joint.elbow_joint|stiffness:
-      - [0.07393755, 0.07393755]
+      - [0, 0.01]
       - add
     joint.wrist_1_joint|stiffness:
-      - [0.06627656, 0.06627656]
+      - [0, 0.01]
       - add
     joint.wrist_2_joint|stiffness:
-      - [0.01816769, 0.01816769]
+      - [0, 0.01]
       - add
     joint.wrist_3_joint|stiffness:
-      - [0.03330833, 0.03330833]
+      - [0, 0.01]
       - add
 
   gravity:
-    # Gravity
     gravity:
-      - [-0.2745999999999995, -0.2745999999999995]
+      - [-9.7, -10.1]
       - add
 
+  # Vision parameters
   robot_color:
     material.black|rgba:
       - [[0.0, 0.0, 0.0, 1.0], [1.0, 1.0, 1.0, 1.0]]
