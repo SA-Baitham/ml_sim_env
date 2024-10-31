@@ -53,7 +53,7 @@ def train(conf: OmegaConf):
         os.path.realpath(__file__)
     )  # TODO Path 잘 만들기
     log_path = os.path.join(
-        current_file_path, "logs/{}/{}".format(start_date, task_config.name, dataset_category)
+        current_file_path, "logs/{}/{}/{}".format(start_date, task_config.name, dataset_category)
     )
     if not os.path.exists(log_path):
         os.makedirs(log_path)

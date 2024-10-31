@@ -26,10 +26,11 @@
 
 # List of dataset paths
 dataset_paths=(
-    "clean"
-    "link_mass"
-    "joint_damping"
-    "joint_friction"
+    "light_source"
+    "object_color"
+    "robot_color"
+    "table_color"
+    "real_floor"
 )
 
 # Loop through each dataset path
