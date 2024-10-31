@@ -1,9 +1,9 @@
 # Configuration file for randomization
 
 save_gifs: True # Save gifs of the simulation
-render: True # Display simulation window
+render: False # Display simulation window
 num_light_sources: 5 # Number of light sources to add for light_source randomization
-render_cam_pos: [-1, -2, 3] # Camera used for gifs
+render_cam_pos: [-1.5, -1.5, 1.5] # Camera used for gifs
 
 randomization_list: [
     {'clean'}, 
@@ -50,7 +50,7 @@ random_dynamics:
       - [-0.6, 0.6]
       - add
     body.wrist_3_link|inertial.mass:
-      - [-0.6, 0.6]
+      - [-0.15, 0.15]
       - add
 
   joint_damping:
@@ -100,7 +100,7 @@ random_dynamics:
       - mul
     # actuator.shoulder_lift|gainprm:
     actuator.shoulder_lift|kp:
-      - [0.57,297]
+      - [0.5, 2]
       - mul
     # actuator.elbow|gainprm:
     actuator.elbow|kp:

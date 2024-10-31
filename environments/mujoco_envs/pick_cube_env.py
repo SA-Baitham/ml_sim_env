@@ -181,7 +181,9 @@ class PickCubeEnv(MujocoEnv):
         render_cam_pos = self.configs["render_cam_pos"]
         robot_model_spawn_pos = (0, 0, 0.145)
         robot_pos = np.array([robot_model_spawn_pos[0], robot_model_spawn_pos[1], robot_model_spawn_pos[2] + 0.3])
-        cam_to_robot = robot_pos - render_cam_pos
+        table_model_spawn_pos = (0, 0, 0)
+        table_pos = np.array([table_model_spawn_pos[0], table_model_spawn_pos[1], table_model_spawn_pos[2] + 0.3])
+        cam_to_robot = table_pos - render_cam_pos
 
         rotation_matrix = self.rotation_matrix_to_align_z_and_x(cam_to_robot, [0, 0, 1]) # rotate z axis to cam_to_robot
 
@@ -212,13 +214,13 @@ class PickCubeEnv(MujocoEnv):
             adj_color = [round(x / 255, 3) for x in color]
             rgba_color = np.append(adj_color, 1)
         else:
-            rgba_color = "1.0 0.0 0.0 1"
+            rgba_color = np.array([1.0, 0.0, 0.0, 1])
 
         box_model = mjcf.from_xml_string(
             f"""<mujoco>
             <worldbody>
                 <body name="box" pos="0 0 0" >
-                    <geom type="box" size="0.015 0.015 0.015" rgba="{rgba_color}" />
+                    <geom type="box" size="0.015 0.015 0.015" rgba="{rgba_color[0]} {rgba_color[1]} {rgba_color[2]} {rgba_color[3]}" />
                 </body>
             </worldbody>
         </mujoco>"""
@@ -250,14 +252,14 @@ class PickCubeEnv(MujocoEnv):
             adj_color = [round(x / 255, 3) for x in color]
             rgba_color = np.append(adj_color, 1)
         else:
-            rgba_color = "0.239 0.262 0.309 1"
+            rgba_color = np.array([0.239, 0.262, 0.309, 1])
 
         # make a obj table
         obj_table = mjcf.from_xml_string(
             f"""<mujoco>
                 <worldbody>
-                    <body name="box" pos="0 0 0">
-                        <geom type="box" size="0.33 0.33 0.001" rgba="{rgba_color}" />
+                    <body name="box" pos="{table_pos}">
+                        <geom type="box" size="0.33 0.33 0.001" rgba="{rgba_color[0]} {rgba_color[1]} {rgba_color[2]} {rgba_color[3]}" />
                     </body>
                 </worldbody>
             </mujoco>"""
@@ -482,7 +484,7 @@ class PickCubeEnv(MujocoEnv):
         
         
         # for i in range(100):
-        while episode_idx < 1:
+        while episode_idx < 50:
             print(f"EPISODE: {episode_idx}")
             _, info = self.reset()  # options[i])
             (
