@@ -24,6 +24,10 @@ from utils import (
 
 @hydra.main(config_path="config", config_name="train_default")
 def train(conf: OmegaConf):
+    dataset_path = conf.task_config.dataset_dir
+    
+    # get last folder name from dataset path
+    dataset_category = dataset_path.split("/")[-1]
     set_seed(conf.seed)
 
     task_config = conf.task_config
@@ -49,7 +53,7 @@ def train(conf: OmegaConf):
         os.path.realpath(__file__)
     )  # TODO Path 잘 만들기
     log_path = os.path.join(
-        current_file_path, "logs/{}/{}".format(start_date, task_config.name)
+        current_file_path, "logs/{}/{}".format(start_date, task_config.name, dataset_category)
     )
     if not os.path.exists(log_path):
         os.makedirs(log_path)

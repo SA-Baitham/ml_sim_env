@@ -1,6 +1,6 @@
 name: pick_cube
-dataset_dir: "/home/plaif_train/syzy/motion/mo_plaif_act/dataset/pick_cube/real_floor"
-num_episodes: 91
+dataset_dir: "/home/ahmed/Desktop/workspace/ml_sim_env/dataset_for_training/pick_cube/clean"
+num_episodes: 50
 episode_len: 165
 state_dim: 7
 action_dim: 8

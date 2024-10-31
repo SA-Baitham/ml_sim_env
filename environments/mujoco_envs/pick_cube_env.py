@@ -37,19 +37,21 @@ class PickCubeEnv(MujocoEnv):
     ):
         self.configs = configs
         self.randomizations_to_apply = randomizations_to_apply
-        self.random_dynamics = configs["random_dynamics"]
+        
+        if configs:
+            self.random_dynamics = configs["random_dynamics"]
 
-        # TODO add random dynamics to object (if needed)
-        self.object_random_dynamics = {}
+            # TODO add random dynamics to object (if needed)
+            self.object_random_dynamics = {}
 
-        # TODO add random dynamics to world (if needed)
-        self.world_random_dynamics = {}
+            # TODO add random dynamics to world (if needed)
+            self.world_random_dynamics = {}
 
-        self.random_dynamics_groups = { 
-            "robot": self.random_dynamics,
-            "box": self.object_random_dynamics,
-            "world": self.world_random_dynamics,
-        }
+            self.random_dynamics_groups = { 
+                "robot": self.random_dynamics,
+                "box": self.object_random_dynamics,
+                "world": self.world_random_dynamics,
+            }
 
         self.seed = seed
         self.control_dt = control_dt

@@ -1,26 +1,26 @@
 # Configuration file for randomization
 
 save_gifs: True # Save gifs of the simulation
-render: False # Display simulation window
+render: True # Display simulation window
 num_light_sources: 5 # Number of light sources to add for light_source randomization
 render_cam_pos: [-1.5, -1.5, 1.5] # Camera used for gifs
 
 randomization_list: [
-    {'clean'}, 
+    # {'clean'}, 
     # Dynamic parameters
-    {"link_mass"}, 
-    {"joint_damping"}, 
-    {"joint_friction"}, 
-    {"actuator_gain"},
-    {"link_inertia"},
-    {"joint_stiffness"},
-    {'gravity'},
+    # {"link_mass"}, 
+    # {"joint_damping"}, 
+    # {"joint_friction"}, 
+    # {"actuator_gain"},
+    # {"link_inertia"},
+    # {"joint_stiffness"},
+    # {'gravity'},
     
     # Vision parameters
-    {"light_source"},
-    {"object_color"},
-    {"robot_color"},
-    {"table_color"},
+    # {"light_source"},
+    # {"object_color"},
+    # {"robot_color"},
+    # {"table_color"},
     {"real_floor"},
     # {"HSV"},
     # {"salt_and_pepper"},
