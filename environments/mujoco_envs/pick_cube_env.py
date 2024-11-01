@@ -14,6 +14,7 @@ from ..utils import Pose, get_best_orn_for_gripper
 
 from .mujoco_robot import MujocoRobot
 from PIL import Image
+import cv2
 
 
 class EnvState(IntEnum):
@@ -466,7 +467,7 @@ class PickCubeEnv(MujocoEnv):
         # Construct the dataset path
         dataset_path = os.path.join(
             current_file_path,
-            "dataset_random_dynamics",
+            self.configs["dataset_dir_name"],
             "pick_cube",
             ' + '.join(self.randomizations_to_apply),  # Assuming dynamic is a list/dict of strings
         )
@@ -486,7 +487,7 @@ class PickCubeEnv(MujocoEnv):
         
         
         # for i in range(100):
-        while episode_idx < 50:
+        while episode_idx < self.configs["num_episodes"]:
             print(f"EPISODE: {episode_idx}")
             _, info = self.reset()  # options[i])
             (
@@ -519,6 +520,18 @@ class PickCubeEnv(MujocoEnv):
             }
             for cam_name in camera_names:
                 data_dict[f"/observations/images/{cam_name}"] = []
+
+            if "salt_and_pepper" in self.randomizations_to_apply:
+                hand_eye_frames = self.add_salt_and_pepper_noise(hand_eye_frames)
+                top_frames = self.add_salt_and_pepper_noise(top_frames)
+            
+            if "HSV" in self.randomizations_to_apply:
+                hand_eye_frames = self.randomize_hsv(hand_eye_frames)
+                top_frames = self.randomize_hsv(top_frames)
+            
+            if "normalize" in self.randomizations_to_apply:
+                hand_eye_frames = self.normalize_images(hand_eye_frames)
+                top_frames = self.normalize_images(top_frames)
 
             data_dict["/observations/qpos"] = joint_traj
             data_dict["/observations/qvel"] = qvels
@@ -937,3 +950,69 @@ class PickCubeEnv(MujocoEnv):
         R = np.array([x_axis, y_axis, v_prime]).T
         
         return R
+    
+    """
+    .##.....##.####..######..####..#######..##....##
+    .##.....##..##..##....##..##..##.....##.###...##
+    .##.....##..##..##........##..##.....##.####..##
+    .##.....##..##...######...##..##.....##.##.##.##
+    ..##...##...##........##..##..##.....##.##..####
+    ...##.##....##..##....##..##..##.....##.##...###
+    ....###....####..######..####..#######..##....##
+    .............########.....###....##....##.########...#######..##.....##.####.########....###....########.####..#######..##....##
+    .............##.....##...##.##...###...##.##.....##.##.....##.###...###..##.......##....##.##......##.....##..##.....##.###...##
+    .............##.....##..##...##..####..##.##.....##.##.....##.####.####..##......##....##...##.....##.....##..##.....##.####..##
+    .............########..##.....##.##.##.##.##.....##.##.....##.##.###.##..##.....##....##.....##....##.....##..##.....##.##.##.##
+    .............##...##...#########.##..####.##.....##.##.....##.##.....##..##....##.....#########....##.....##..##.....##.##..####
+    .............##....##..##.....##.##...###.##.....##.##.....##.##.....##..##...##......##.....##....##.....##..##.....##.##...###
+    .............##.....##.##.....##.##....##.########...#######..##.....##.####.########.##.....##....##....####..#######..##....##
+    """
+
+    def normalize_images(self, image_list):
+        normalized_images = []
+        for image in image_list:
+            # Convert image to float type for division
+            image = image.astype(np.float32)
+            # Normalize to range 0-1
+            normalized_image = (image - image.min()) / (image.max() - image.min())
+            normalized_images.append(normalized_image)
+        return normalized_images
+    # Usage
+    
+    def add_salt_and_pepper_noise(self, image_list, salt_vs_pepper=0.5, amount=0.04):
+        noisy_images = []
+        for image in image_list:
+            # Generate unique noise level for each image
+            image_noise_amount = np.random.uniform(0, amount)
+            # Copy the image to avoid modifying the original
+            noisy_image = np.copy(image)
+            # Number of pixels to alter
+            num_salt = np.ceil(image_noise_amount * image.size * salt_vs_pepper)
+            num_pepper = np.ceil(image_noise_amount * image.size * (1.0 - salt_vs_pepper))
+            # Add salt (white) noise
+            coords_salt = [np.random.randint(0, i - 1, int(num_salt)) for i in image.shape]
+            noisy_image[coords_salt] = 1
+            # Add pepper (black) noise
+            coords_pepper = [np.random.randint(0, i - 1, int(num_pepper)) for i in image.shape]
+            noisy_image[coords_pepper] = 0
+            noisy_images.append(noisy_image)
+        return noisy_images
+    
+    def randomize_hsv(self, image_list, hue_variation=0.1, saturation_variation=0.3, value_variation=0.3):
+        randomized_images = []
+        for image in image_list:
+            # Convert to HSV color space
+            hsv_image = cv2.cvtColor(image, cv2.COLOR_RGB2HSV)
+            # Randomly adjust each HSV channel
+            h_variation = np.random.uniform(-hue_variation, hue_variation)
+            s_variation = np.random.uniform(-saturation_variation, saturation_variation)
+            v_variation = np.random.uniform(-value_variation, value_variation)
+            # Apply variations
+            hsv_image = hsv_image.astype(np.float32)
+            hsv_image[..., 0] = (hsv_image[..., 0] + h_variation * 180) % 180  # Hue adjustment
+            hsv_image[..., 1] = np.clip(hsv_image[..., 1] + s_variation * 255, 0, 255)  # Saturation adjustment
+            hsv_image[..., 2] = np.clip(hsv_image[..., 2] + v_variation * 255, 0, 255)  # Value adjustment
+            # Convert back to RGB color space
+            randomized_image = cv2.cvtColor(hsv_image.astype(np.uint8), cv2.COLOR_HSV2RGB)
+            randomized_images.append(randomized_image)
+        return randomized_images

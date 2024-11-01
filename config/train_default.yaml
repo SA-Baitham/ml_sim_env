@@ -1,6 +1,6 @@
 seed: 0
 batch_size: 32
-num_epochs: 50000
+num_epochs: 20000
 eval_interval: 500
 ckpt_save_interval: 5000
 rollout_num: 10

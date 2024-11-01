@@ -7,3 +7,4 @@ dm-control
 h5py
 numpy
 imageio
+scikit-image

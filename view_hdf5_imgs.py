@@ -7,7 +7,7 @@ from glob import glob
 ## load hdf5
 
 # filename = "/home/plaif_train/syzy/motion/mo_plaif_act/dataset/pick_cube/episode_23.hdf5"
-filename = "/home/ahmed/Desktop/workspace/ml_sim_env/dataset_random_dynamics/pick_cube/table_color/"
+filename = "/home/ahmed/Desktop/workspace/ml_sim_env/dataset_for_training/pick_cube/normalize/"
 
 files = glob(filename+"/*.hdf5")
 for file in files:
