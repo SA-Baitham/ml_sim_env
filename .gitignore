@@ -1,11 +1,11 @@
 .vscode
+**/__pycache__
 outputs
 dataset
 logs
 dataset*
 
 # Byte-compiled / optimized / DLL files
-*__pycache__/*
 *.py[cod]
 *$py.class
 

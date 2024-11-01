@@ -1,21 +1,21 @@
 #!/bin/bash
 
 # datasets_options:
-#     {'clean'}, 
+#     {'clean'}, # Done
 #     # Dynamic parameters
-#     {"link_mass"}, 
-#     {"joint_damping"}, 
-#     {"joint_friction"}, 
-#     {"actuator_gain"},
-#     {"link_inertia"},
+#     {"link_mass"}, # Done
+#     {"joint_damping"}, # Done
+#     {"joint_friction"}, # Done
+#     {"actuator_gain"}, # Done
+#     {"link_inertia"}, # Done
 #     {"joint_stiffness"},
 #     {'gravity'},
     
 #     # Vision parameters
-#     {"light_source"},
-#     {"object_color"},
-#     {"robot_color"},
-#     {"table_color"},
+#     {"light_source"}, # Done
+#     {"object_color"}, # Done
+#     {"robot_color"}, # Done
+#     {"table_color"}, # Done
 #     {"real_floor"},
 #     
 
@@ -26,11 +26,10 @@
 
 # List of dataset paths
 dataset_paths=(
-    "light_source"
-    "object_color"
-    "robot_color"
-    "table_color"
     "real_floor"
+    "All"
+    "All_dynamics"
+    "All_vision"
 )
 
 # Loop through each dataset path

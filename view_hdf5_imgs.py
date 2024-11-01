@@ -6,8 +6,10 @@ from glob import glob
 
 ## load hdf5
 
+category = "salt_and_pepper"
+
 # filename = "/home/plaif_train/syzy/motion/mo_plaif_act/dataset/pick_cube/episode_23.hdf5"
-filename = "/home/ahmed/Desktop/workspace/ml_sim_env/dataset_for_training/pick_cube/normalize/"
+filename = f"/home/ahmed/Desktop/workspace/ml_sim_env/dataset_for_training/pick_cube/f{category}/"
 
 files = glob(filename+"/*.hdf5")
 for file in files:
@@ -29,7 +31,7 @@ for file in files:
         img_idx = 0
         
         while(True):
-            cv2.imshow("top_cam", imgs[img_idx][::-1])
+            cv2.imshow(f"top_cam_{category}", imgs[img_idx][::-1])
             c = cv2.waitKey(0)
             if c==27:    # Esc key to stop
                 break

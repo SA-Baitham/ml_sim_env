@@ -1,11 +1,16 @@
 # Configuration file for randomization
 
-save_gifs: False # Save gifs of the simulation
-render: False # Display simulation window
+# Vision randomization options
 num_light_sources: 5 # Number of light sources to add for light_source randomization
+
+# Task options
+num_episodes: 50 # Number of episodes to generate
+dataset_dir_name: "dataset_for_training" # Path to save the dataset
+
+# Rendering options
+render: False # Display simulation window
 render_cam_pos: [-1.5, -1.5, 1.5] # Camera used for gifs
-num_episodes: 2 # Number of episodes to generate
-dataset_dir_name: "dataset_random_dynamics" # Path to save the dataset
+save_gifs: False # Save gifs of the simulation
 
 randomization_list: [
     # {'clean'}, 
@@ -25,8 +30,8 @@ randomization_list: [
     # {"table_color"},
     # {"real_floor"},
     {"normalize"},
-    {"HSV"},
-    {"salt_and_pepper"},
+    # {"HSV"},
+    # {"salt_and_pepper"},
     # {"SAM"},
   ]
 

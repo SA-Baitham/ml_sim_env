@@ -437,15 +437,15 @@ class PickCubeEnv(MujocoEnv):
     def step(self, action):
         # target_qpos = action
 
-        qpos_action = Pose(position=action[:3], orientation=action[3:7])
-        target_qpos = self.ur5_robotiq.inverse_kinematics(qpos_action)
+        qpos_action = Pose(position=action[:3], orientation=action[3:7]) # TCP space (x, y, z, quat)
+        target_qpos = self.ur5_robotiq.inverse_kinematics(qpos_action) # joint space (joint1, joint2, ..., joint6)
 
         # self.physics.data.ctrl[:-1] = target_qpos[:-1]
         # self.physics.data.ctrl[-1] = target_qpos[-1]
-        self.physics.data.ctrl[:-1] = target_qpos
+        self.physics.data.ctrl[:-1] = target_qpos # self.physics.data.ctrl has joint space + gripper, 7 values
         self.physics.data.ctrl[-1] = action[-1]
 
-        for _ in range(40):  # TODO: check!
+        for _ in range(40):  # why does it need to be 40???? so we have only 40 steps to reach the target? that means that if we increased that number then whatever random dynamics 
             self.physics.step()
             self.physics.forward()
 
@@ -691,6 +691,8 @@ class PickCubeEnv(MujocoEnv):
             waypoints_len = len(waypoints)
 
             for i in range(waypoints_len):
+                
+                # What would make i >= waypoints_len???? why this line is here???
                 if i >= waypoints_len:
                     i = waypoints_len - 1
 
@@ -974,7 +976,7 @@ class PickCubeEnv(MujocoEnv):
             # Convert image to float type for division
             image = image.astype(np.float32)
             # Normalize to range 0-1
-            normalized_image = (image - image.min()) / (image.max() - image.min())
+            normalized_image = image / 255.0
             normalized_images.append(normalized_image)
         return normalized_images
     # Usage
@@ -987,14 +989,15 @@ class PickCubeEnv(MujocoEnv):
             # Copy the image to avoid modifying the original
             noisy_image = np.copy(image)
             # Number of pixels to alter
-            num_salt = np.ceil(image_noise_amount * image.size * salt_vs_pepper)
-            num_pepper = np.ceil(image_noise_amount * image.size * (1.0 - salt_vs_pepper))
-            # Add salt (white) noise
-            coords_salt = [np.random.randint(0, i - 1, int(num_salt)) for i in image.shape]
-            noisy_image[coords_salt] = 1
-            # Add pepper (black) noise
-            coords_pepper = [np.random.randint(0, i - 1, int(num_pepper)) for i in image.shape]
-            noisy_image[coords_pepper] = 0
+            num_salt = int(np.ceil(image_noise_amount * image.size * salt_vs_pepper))
+            num_pepper = int(np.ceil(image_noise_amount * image.size * (1.0 - salt_vs_pepper)))
+            # Generate 2D coordinates for salt and pepper
+            coords_salt = [np.random.randint(0, i, num_salt) for i in image.shape[:2]]
+            coords_pepper = [np.random.randint(0, i, num_pepper) for i in image.shape[:2]]
+            # Add salt noise (white, typically 255 for uint8 images)
+            noisy_image[tuple(coords_salt) + (slice(None),)] = 255
+            # Add pepper noise (black, 0 for uint8 images)
+            noisy_image[tuple(coords_pepper) + (slice(None),)] = 0
             noisy_images.append(noisy_image)
         return noisy_images
     
