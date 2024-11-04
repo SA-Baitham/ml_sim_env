@@ -8,8 +8,8 @@
 #     {"joint_friction"}, # Done
 #     {"actuator_gain"}, # Done
 #     {"link_inertia"}, # Done
-#     {"joint_stiffness"},
-#     {'gravity'},
+#     {"joint_stiffness"}, # Done
+#     {'gravity'}, # Done
     
 #     # Vision parameters
 #     {"light_source"}, # Done
@@ -26,10 +26,10 @@
 
 # List of dataset paths
 dataset_paths=(
-    "real_floor"
+    # "real_floor"
     "All"
-    "All_dynamics"
-    "All_vision"
+    # "All_dynamics"
+    # "All_vision"
 )
 
 # Loop through each dataset path

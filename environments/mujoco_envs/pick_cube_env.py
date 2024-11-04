@@ -77,7 +77,7 @@ class PickCubeEnv(MujocoEnv):
 
         self.hand_eye_cam = self.physics.model.camera("ur5e/robotiq_2f85/d435i/rgb")
         self.top_cam = self.physics.model.camera("d435i/rgb")
-        self.render_cam = self.physics.model.camera("d435i_render/rgb")
+        if self.configs: self.render_cam = self.physics.model.camera("d435i_render/rgb")
         self.ur5_robotiq = UR5Robotiq(self.physics, 0, "ur5e")
         self.env_max_reward = 1
 
@@ -94,7 +94,8 @@ class PickCubeEnv(MujocoEnv):
         robot_model.worldbody.light.clear()
 
         # add random dynamics:
-        robot_model = self.add_random_dynamics(robot_model, self.random_dynamics, self.randomizations_to_apply)
+        if self.configs:
+            robot_model = self.add_random_dynamics(robot_model, self.random_dynamics, self.randomizations_to_apply)
 
         attachment_site = robot_model.find("site", "attachment_site")
         assert attachment_site is not None
@@ -131,12 +132,13 @@ class PickCubeEnv(MujocoEnv):
         # TODO
 
         # call the render camera
-        render_cam = mjcf.from_path(
-            os.path.join(
-                self.current_file_path,
-                "../assets/realsense_d435i/d435i_render.xml",
-            ),
-        )
+        if self.configs:
+            render_cam = mjcf.from_path(
+                os.path.join(
+                    self.current_file_path,
+                    "../assets/realsense_d435i/d435i_render.xml",
+                ),
+            )
         # TODO
 
         # call the default world
@@ -181,23 +183,25 @@ class PickCubeEnv(MujocoEnv):
         spawn_site.attach(top_cam)
 
         # spawn the render camera
-        render_cam_pos = self.configs["render_cam_pos"]
         robot_model_spawn_pos = (0, 0, 0.145)
         robot_pos = np.array([robot_model_spawn_pos[0], robot_model_spawn_pos[1], robot_model_spawn_pos[2] + 0.3])
         table_model_spawn_pos = (0, 0, 0)
         table_pos = np.array([table_model_spawn_pos[0], table_model_spawn_pos[1], table_model_spawn_pos[2] + 0.3])
-        cam_to_robot = table_pos - render_cam_pos
+        
+        if self.configs:
+            render_cam_pos = self.configs["render_cam_pos"]
+            cam_to_robot = table_pos - render_cam_pos
 
-        rotation_matrix = self.rotation_matrix_to_align_z_and_x(cam_to_robot, [0, 0, 1]) # rotate z axis to cam_to_robot
+            rotation_matrix = self.rotation_matrix_to_align_z_and_x(cam_to_robot, [0, 0, 1]) # rotate z axis to cam_to_robot
 
-        # TODO
-        spawn_site = world_model.worldbody.add(
-            "site",
-            pos=tuple(render_cam_pos),
-            quat=quaternions.mat2quat(rotation_matrix),
-            group=3,
-        )
-        spawn_site.attach(render_cam)
+            # TODO
+            spawn_site = world_model.worldbody.add(
+                "site",
+                pos=tuple(render_cam_pos),
+                quat=quaternions.mat2quat(rotation_matrix),
+                group=3,
+            )
+            spawn_site.attach(render_cam)
 
         # hand eye camera / wrist camera
 
@@ -304,7 +308,6 @@ class PickCubeEnv(MujocoEnv):
             "robot": robot_model,
             "gripper": gripper,
             "top_cam": top_cam,
-            "render_cam": render_cam,
             "wrist_cam": wrist_cam,
             "box": box_model,
             # "box2": box_model2,
@@ -404,9 +407,10 @@ class PickCubeEnv(MujocoEnv):
         images["top_cam"] = self.physics.render(
             height=480 // 2, width=640 // 2, depth=False, camera_id=self.top_cam.id
         )
-        images["render_cam"] = self.physics.render(
-            height=480, width=640, depth=False, camera_id=self.render_cam.id
-        )
+        if self.configs:
+            images["render_cam"] = self.physics.render(
+                height=480, width=640, depth=False, camera_id=self.render_cam.id
+            )
         images["hand_eye_cam"] = self.physics.render(
             height=480 // 2,
             width=640 // 2,
@@ -761,14 +765,15 @@ class PickCubeEnv(MujocoEnv):
                     )
                 )
 
-                render_frames.append(
-                    self.physics.render(
-                        height=480,
-                        width=640,
-                        depth=False,
-                        camera_id=self.render_cam.id,
+                if self.configs:
+                    render_frames.append(
+                        self.physics.render(
+                            height=480,
+                            width=640,
+                            depth=False,
+                            camera_id=self.render_cam.id,
+                        )
                     )
-                )
 
                 if self.configs["render"]:
                     self.render()
