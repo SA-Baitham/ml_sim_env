@@ -5,33 +5,35 @@ num_light_sources: 5 # Number of light sources to add for light_source randomiza
 
 # Task options
 num_episodes: 50 # Number of episodes to generate
-dataset_dir_name: "dataset_for_training" # Path to save the dataset
+dataset_dir_name: "dataset_for_training_corrected_orientation" # Path to save the dataset
+depth: True
 
 # Rendering options
 render: False # Display simulation window
-render_cam_pos: [-1.5, -1.5, 1.5] # Camera used for gifs
-save_gifs: False # Save gifs of the simulation
+render_cam_pos: [-1, -1, 1] # Position of camera used for gifs
+save_gifs: True # Save gifs of the simulation
+save_failed_gifs: False # Save gifs of the simulation when the task fails
 
 randomization_list: [
-    # {'clean'}, 
+    {'clean'}, 
     # Dynamic parameters
-    # {"link_mass"}, 
-    # {"joint_damping"}, 
-    # {"joint_friction"}, 
-    # {"actuator_gain"},
-    # {"link_inertia"},
-    # {"joint_stiffness"},
-    # {'gravity'},
+    {"link_mass"}, 
+    {"joint_damping"}, 
+    {"joint_friction"}, 
+    {"actuator_gain"},
+    {"link_inertia"},
+    {"joint_stiffness"},
+    {'gravity'},
     
     # Vision parameters
-    # {"light_source"},
-    # {"object_color"},
-    # {"robot_color"},
-    # {"table_color"},
-    # {"real_floor"},
+    {"light_source"},
+    {"object_color"},
+    {"robot_color"},
+    {"table_color"},
+    {"real_floor"},
     {"normalize"},
-    # {"HSV"},
-    # {"salt_and_pepper"},
+    {"HSV"},
+    {"salt_and_pepper"},
     # {"SAM"},
   ]
 

@@ -7,6 +7,9 @@ import numpy as np
 from transforms3d import affines, euler, quaternions
 from scipy.spatial.transform import Rotation
 
+import os
+from PIL import Image
+
 LINK_SEPARATOR_TOKEN = "|"
 
 
@@ -117,3 +120,20 @@ def get_best_orn_for_gripper(reference_orn: np.ndarray, query_orn: np.ndarray):
     ):
         return other_orn
     return query_orn
+
+def frames_to_gif(dataset_path, render_frames, episode_idx, failure_idx=0):
+    print("Saving gif file...")
+    # save the render_frames into 
+    gif_path = os.path.join(dataset_path, f"episode_{episode_idx}_{failure_idx}.gif")
+    images = render_frames
+    # resize images to half their resolution
+    pil_images = [Image.fromarray(image) for image in images]
+
+    # Create the GIF with a specific duration (e.g., 0.1 seconds per frame)
+    pil_images[0].save(
+    gif_path,
+    save_all=True,
+    append_images=pil_images[1:],
+    duration=50,  # duration in milliseconds per frame
+    loop=0  # loop indefinitely
+    )

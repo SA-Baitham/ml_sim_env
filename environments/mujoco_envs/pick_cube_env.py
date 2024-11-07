@@ -10,11 +10,12 @@ from enum import IntEnum
 from .mujoco_ur5 import UR5Robotiq, DEG2CTRL
 from .mujoco_env import MujocoEnv
 from ..trajectory_generator import JointTrajectory, interpolate_trajectory
-from ..utils import Pose, get_best_orn_for_gripper
+from ..utils import Pose, get_best_orn_for_gripper, frames_to_gif
 
 from .mujoco_robot import MujocoRobot
 from PIL import Image
 import cv2
+from scipy.spatial.transform import Rotation as R    
 
 
 class EnvState(IntEnum):
@@ -184,9 +185,9 @@ class PickCubeEnv(MujocoEnv):
 
         # spawn the render camera
         robot_model_spawn_pos = (0, 0, 0.145)
-        robot_pos = np.array([robot_model_spawn_pos[0], robot_model_spawn_pos[1], robot_model_spawn_pos[2] + 0.3])
+        robot_pos = np.array([robot_model_spawn_pos[0], robot_model_spawn_pos[1], robot_model_spawn_pos[2] + 0.6])
         table_model_spawn_pos = (0, 0, 0)
-        table_pos = np.array([table_model_spawn_pos[0], table_model_spawn_pos[1], table_model_spawn_pos[2] + 0.3])
+        table_pos = np.array([table_model_spawn_pos[0], table_model_spawn_pos[1], table_model_spawn_pos[2] + 0.6])
         
         if self.configs:
             render_cam_pos = self.configs["render_cam_pos"]
@@ -465,6 +466,7 @@ class PickCubeEnv(MujocoEnv):
 
     def collect_data(self, options=None):
         episode_idx = 0
+        failure_idx = 0
 
         current_file_path = os.getcwd()
 
@@ -500,6 +502,8 @@ class PickCubeEnv(MujocoEnv):
                 qvels,
                 hand_eye_frames,
                 top_frames,
+                hand_eye_depth_frames,
+                top_depth_frames,
                 render_frames,
                 env_state,
             ) = self.collect_data_sequence()
@@ -508,15 +512,26 @@ class PickCubeEnv(MujocoEnv):
                 or env_state < 3
             ):
                 print("FAILED")
+                failure_idx += 1
+                if self.configs["save_gifs"] and self.configs["save_failed_gifs"]:
+                    frames_to_gif(dataset_path, render_frames, episode_idx+1, failure_idx)
+                    
                 continue
             else:
                 print("SUCCEED")
                 episode_idx += 1
+                failure_idx = 0
+                
+            if self.configs["save_gifs"]:
+                frames_to_gif(dataset_path, render_frames, episode_idx, failure_idx)
             # 성공 trajectory 생성
             # ================================================================================================ #
             # 데이터 구조 설정
 
             camera_names = ["hand_eye_cam", "top_cam"]
+            if self.configs["depth"]:
+                camera_names += ["hand_eye_depth_cam", "top_depth_cam"]
+                
             data_dict = {
                 "/observations/qpos": [],
                 "/observations/qvel": [],
@@ -542,6 +557,9 @@ class PickCubeEnv(MujocoEnv):
             data_dict["/action"] = actions
             data_dict[f"/observations/images/hand_eye_cam"] = hand_eye_frames
             data_dict[f"/observations/images/top_cam"] = top_frames
+            if self.configs["depth"]:
+                data_dict[f"/observations/images/hand_eye_depth_cam"] = hand_eye_depth_frames
+                data_dict[f"/observations/images/top_depth_cam"] = top_depth_frames
 
             max_timesteps = len(joint_traj)
 
@@ -555,14 +573,19 @@ class PickCubeEnv(MujocoEnv):
                 obs = root.create_group("observations")
                 image = obs.create_group("images")
                 for cam_name in camera_names:
-                    _ = image.create_dataset(
-                        cam_name,
-                        (max_timesteps, 480 // 2, 640 // 2, 3),
-                        dtype="uint8",
-                        chunks=(1, 480 // 2, 640 // 2, 3),
-                        compression="gzip",
-                        compression_opts=9,
-                    )
+                    if 'depth' in cam_name:
+                        _ = image.create_dataset(
+                        cam_name, (max_timesteps, 480 // 2, 640 // 2), compression="gzip", compression_opts=9
+                        )
+                    else:
+                        _ = image.create_dataset(
+                            cam_name,
+                            (max_timesteps, 480 // 2, 640 // 2, 3),
+                            dtype="int8",
+                            chunks=(1, 480 // 2, 640 // 2, 3),
+                            compression="gzip",
+                            compression_opts=9,
+                        )
                 qpos = obs.create_dataset(
                     "qpos", (max_timesteps, 7), compression="gzip", compression_opts=9
                 )
@@ -604,27 +627,8 @@ class PickCubeEnv(MujocoEnv):
             formatted_pose = [f"{x:.3f}" for x in info['generated_cube_pose']]
             log_message += f"Init Pose: {formatted_pose}\n"
 
-            # print robot parameters using self.physics.model
-
             with open(logs_path, 'a') as file:
                 file.write(log_message + '\n')
-
-            if self.configs["save_gifs"]:
-                print("Saving gif file...")
-                # save the render_frames into 
-                gif_path = os.path.join(dataset_path, f"episode_{episode_idx-1}.gif")
-                images = render_frames
-                # resize images to half their resolution
-                pil_images = [Image.fromarray(image) for image in images]
-
-                # Create the GIF with a specific duration (e.g., 0.1 seconds per frame)
-                pil_images[0].save(
-                gif_path,
-                save_all=True,
-                append_images=pil_images[1:],
-                duration=50,  # duration in milliseconds per frame
-                loop=0  # loop indefinitely
-                )
 
 
             # log_message = 
@@ -646,6 +650,8 @@ class PickCubeEnv(MujocoEnv):
         hand_eye_frames = []
         top_frames = []
         render_frames = []
+        hand_eye_depth_frames = []
+        top_depth_frames = []
 
         # 초기상태 - 현재 관절 위치
         cur_qpos = self.physics.named.data.qpos["unnamed_model/red_cube_joint/"]
@@ -737,11 +743,17 @@ class PickCubeEnv(MujocoEnv):
                 )
                 qvels.append(np.append(self.ur5_robotiq.joint_velocities, 0))
 
+                                # Converting quaternion from mujoco to real robot criteria
                 if env_state != EnvState.GRASP:
+                    corrected_quat = self.correct_mujoco_quaternion(waypoints[i][3:7])
+                    waypoints[i][3:7] = corrected_quat
                     actions.append(
                         np.append(waypoints[i], grip_angle)
                     )  # grip_angle = 250
                 else:
+
+                    corrected_quat = self.correct_mujoco_quaternion(tcp_np[3:7])
+                    tcp_np[3:7] = corrected_quat
                     actions.append(
                         np.append(tcp_np, waypoints[i])
                         # np.append(self.ur5_robotiq.joint_positions, waypoints[i]) # waypoints[i] = 0~ 250
@@ -765,6 +777,26 @@ class PickCubeEnv(MujocoEnv):
                     )
                 )
 
+                if self.configs["depth"]:
+                    hand_eye_depth = self.physics.render(
+                        height=480 // 2,
+                        width=640 // 2,
+                        depth=True,
+                        camera_id=self.hand_eye_cam.id,
+                    )
+
+                    top_depth = self.physics.render(
+                        height=480 // 2,
+                        width=640 // 2,
+                        depth=True,
+                        camera_id=self.top_cam.id,
+                    )
+
+                    hand_eye_depth_frames.append(hand_eye_depth)
+                    top_depth_frames.append(top_depth)
+
+
+
                 if self.configs:
                     render_frames.append(
                         self.physics.render(
@@ -785,6 +817,8 @@ class PickCubeEnv(MujocoEnv):
             qvels,
             hand_eye_frames,
             top_frames,
+            hand_eye_depth_frames,
+            top_depth_frames,
             render_frames,
             env_state,
         )
@@ -828,6 +862,16 @@ class PickCubeEnv(MujocoEnv):
         trajectory = JointTrajectory(start, end, time, 15, 6)
 
         return trajectory
+    
+    #pick_cube_env.py
+    def correct_mujoco_quaternion(self, mujoco_endeff_quat):
+
+        world_quat = np.array([0, 0, 1, 0])
+        local_quat = np.array([1, 0, 0, 0])
+        correction_rot = R.from_quat(local_quat) * R.from_quat(world_quat).inv()
+        # Apply the correction rotation to the quaternion from MuJoCo
+        corrected_quat = correction_rot * R.from_quat(mujoco_endeff_quat)
+        return corrected_quat.as_quat()
 
     """
     .########.....###....##....##.########...#######..##.....##...
@@ -916,7 +960,6 @@ class PickCubeEnv(MujocoEnv):
                         new_value = default_value * random_noise
                     elif operation == "set":
                         new_value = random_noise
-                    # print(f"Setting {dynamics_element} to {new_value}")
 
                     if dynamics_type == "gravity":
                         model.option.gravity[2] = new_value

@@ -2,6 +2,9 @@ import os
 import h5py
 import cv2
 from glob import glob
+import numpy as np
+import matplotlib as mpl
+import matplotlib.cm as cm
 # from natsort import natsorted
 
 ## load hdf5
@@ -9,7 +12,21 @@ from glob import glob
 category = "salt_and_pepper"
 
 # filename = "/home/plaif_train/syzy/motion/mo_plaif_act/dataset/pick_cube/episode_23.hdf5"
-filename = f"/home/ahmed/Desktop/workspace/ml_sim_env/dataset_for_training/pick_cube/f{category}/"
+filename = f"/home/ahmed/Desktop/workspace/ml_sim_env/dataset_debugging_success/pick_cube/clean"
+
+def convert_array_to_pil(depth_map):
+    # Input: depth_map -> HxW numpy array with depth values 
+    # Output: colormapped_im -> HxW numpy array with colorcoded depth values
+    mask = depth_map!=0
+    disp_map = 1/depth_map
+    vmax = np.percentile(disp_map[mask], 95)
+    vmin = np.percentile(disp_map[mask], 5)
+    normalizer = mpl.colors.PowerNorm(gamma=0.35, vmin=vmin, vmax=vmax)
+    mapper = cm.ScalarMappable(norm=normalizer, cmap='magma')
+    mask = np.repeat(np.expand_dims(mask,-1), 3, -1)
+    colormapped_im = (mapper.to_rgba(disp_map)[:, :, :3] * 255).astype(np.uint8)
+    colormapped_im[~mask] = 255
+    return colormapped_im
 
 files = glob(filename+"/*.hdf5")
 for file in files:
@@ -25,8 +42,15 @@ for file in files:
 
         # print(observations.keys()) # ['images', 'qpos', 'qvel']
         # print(observations['images']['top_cam'].shape) 
+
+        # cam = 'hand_eye_depth_cam'
+        cam = 'top_depth_cam'
         
-        imgs = observations['images']['top_cam']
+        imgs = observations['images'][cam]
+
+        if 'depth' in cam:
+            imgs = [convert_array_to_pil(img) for img in imgs]
+
         len_imgs = len(imgs)
         img_idx = 0
         
@@ -47,7 +71,6 @@ for file in files:
         
         print("qpos: ", observations['qpos'])
         print("qvel: ", observations['qvel'])
-    
     
 """
 
