@@ -52,8 +52,10 @@ def train(conf: OmegaConf):
     current_file_path = os.path.dirname(
         os.path.realpath(__file__)
     )  # TODO Path 잘 만들기
+    
+    ckpt_dir = "fine_tuning_" + dataset_category if policy_config.ckpt_path else dataset_category
     log_path = os.path.join(
-        current_file_path, "logs/{}/{}/{}".format(start_date, task_config.name, dataset_category)
+        current_file_path, "logs/{}/{}/{}".format(start_date, task_config.name, ckpt_dir)
     )
     if not os.path.exists(log_path):
         os.makedirs(log_path)

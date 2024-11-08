@@ -26,8 +26,9 @@
 
 # List of dataset paths
 dataset_paths=(
+    "clean"
     # "real_floor"
-    "All"
+    # "All"
     # "All_dynamics"
     # "All_vision"
 )
@@ -35,5 +36,5 @@ dataset_paths=(
 # Loop through each dataset path
 for dataset_path in "${dataset_paths[@]}"; do
     echo "Training with dataset: $dataset_path"
-    python train_act.py "task_config.dataset_dir=/home/ahmed/Desktop/workspace/ml_sim_env/dataset_for_training/pick_cube/$dataset_path"
+    python train_act.py "task_config.dataset_dir=/home/ahmed/Desktop/workspace/ml_sim_env/dataset_for_training_corrected_orientation/pick_cube/$dataset_path"
 done

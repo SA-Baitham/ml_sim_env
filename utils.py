@@ -200,6 +200,12 @@ def make_policy(policy_config):
         policy = CNNMLPPolicy(policy_config)
     else:
         raise NotImplementedError
+    
+    # load checkpoint if available
+    if policy_config.ckpt_path:
+        policy.load_state_dict(torch.load(policy_config.ckpt_path))
+        print(f'Loaded checkpoint from {policy_config.ckpt_path}')
+
     return policy
 
 def forward_pass(data, policy):
@@ -222,3 +228,4 @@ def pre_process(s_qpos, stats):
 
 def post_process(a, stats):
     return a * stats['action_std'] + stats['action_mean']
+    

@@ -581,7 +581,7 @@ class PickCubeEnv(MujocoEnv):
                         _ = image.create_dataset(
                             cam_name,
                             (max_timesteps, 480 // 2, 640 // 2, 3),
-                            dtype="int8",
+                            dtype="uint8",
                             chunks=(1, 480 // 2, 640 // 2, 3),
                             compression="gzip",
                             compression_opts=9,
