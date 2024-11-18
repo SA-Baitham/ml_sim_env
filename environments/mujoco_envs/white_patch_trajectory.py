@@ -211,7 +211,7 @@ class PickCubeEnv(MujocoEnv):
         robot_model_spawn_pos = (0, 0, 0.145)
         robot_pos = np.array([robot_model_spawn_pos[0], robot_model_spawn_pos[1], robot_model_spawn_pos[2] + 0.6])
         table_model_spawn_pos = (0, 0, 0)
-        table_pos = np.array([table_model_spawn_pos[0], table_model_spawn_pos[1], table_model_spawn_pos[2] + 0.35])
+        table_pos = np.array([table_model_spawn_pos[0], table_model_spawn_pos[1], table_model_spawn_pos[2] + 0.6])
         
         if self.configs:
             render_cam_pos = self.configs["render_cam_pos"]
@@ -525,23 +525,6 @@ class PickCubeEnv(MujocoEnv):
         with open(logs_path, 'w'):
             pass  # This will create or clean the file
         
-        for i in range(200):
-            # obj position limit
-            random_position = [
-                self.pose_rng.uniform(-0.10, 0.10),
-                self.pose_rng.uniform(0.45, 0.65),
-                self.pose_rng.uniform(0.1, 0.2),
-            ]
-
-            random_quat = euler.euler2quat(
-                0,
-                0,
-                np.pi * self.pose_rng.uniform(-1, 1),
-            )
-
-        for i in range(20):
-            print("#" * 50)
-        # for i in range(100):
         while episode_idx < self.configs["num_episodes"]:
             print(f"EPISODE: {episode_idx}")
             _, info = self.reset()  # options[i])
@@ -1246,8 +1229,8 @@ class PickCubeEnv(MujocoEnv):
         num_points = len(image_coords)
         
         # Define start and end colors (BGR format)
-        start_color = np.array([255, 0, 255])      # Black (past points)
-        end_color = np.array([255, 0, 0])      # Bright red (recent points)
+        start_color = np.array([255, 255, 0])      # Black (past points)
+        end_color = np.array([0, 255, 0])      # Bright red (recent points)
         
         # Draw the trajectory path with a color gradient
         for i in range(num_points - 1):
@@ -1261,7 +1244,7 @@ class PickCubeEnv(MujocoEnv):
             # Draw the line segment
             pt1 = tuple(image_coords[i].astype(int))
             pt2 = tuple(image_coords[i + 1].astype(int))
-            cv2.line(image, pt1, pt2, color, 1, cv2.LINE_AA)
+            cv2.line(image, pt1, pt2, color, 2, cv2.LINE_AA)
 
         # Add end-effector frame at the end of the trajectory
         ee_quat = trajecotry_quats[-1]

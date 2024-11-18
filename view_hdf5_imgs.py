@@ -14,7 +14,7 @@ import copy
 ## load hdf5
 
 # category = "robot_color"
-dataset_path = "/home/ahmed/Desktop/workspace/ml_sim_env/dataset_for_training_corrected_orientation2/pick_cube"
+dataset_path = "/home/ahmed/Desktop/workspace/ml_sim_env/dataset_for_training_corrected_orientation/pick_cube"
 
 categories = os.listdir(dataset_path)
 num_categories = len(categories)

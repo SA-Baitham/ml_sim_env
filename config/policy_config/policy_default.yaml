@@ -1,5 +1,5 @@
 policy_class: 'ACT'
-lr: 3e-6
+lr: 3e-6 # fine-tuning lr, original lr is 3e-5
 kl_weight: 10
 chunk_size: 50
 hidden_dim: 512

@@ -21,6 +21,10 @@ from utils import (
 )  # helper functions
 
 
+# Set print options to avoid scientific notation
+np.set_printoptions(suppress=True, precision=4)
+torch.set_printoptions(sci_mode=False, precision=4)
+
 def evaluation_sequence(env, policy, stats, temporal_agg, is_render):
     obs, _ = env.reset()  # TODO: observation 형식 통일?
 
@@ -81,6 +85,7 @@ def evaluation_sequence(env, policy, stats, temporal_agg, is_render):
             action = post_process(raw_action, stats)
 
             ### step the environment
+            print(f"Step {t}: {action}")
             obs, reward, terminated, truncated, info = env.step(action)
 
             if is_render:
