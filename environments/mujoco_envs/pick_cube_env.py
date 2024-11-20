@@ -16,8 +16,9 @@ from ..utils import Pose, get_best_orn_for_gripper, frames_to_gif
 from .mujoco_robot import MujocoRobot
 from PIL import Image
 import cv2
-from scipy.spatial.transform import Rotation as R    
+from scipy.spatial.transform import Rotation as R
 
+import json
 
 class EnvState(IntEnum):
     APPROACH = 0
@@ -67,6 +68,7 @@ class PickCubeEnv(MujocoEnv):
 
         # RNG seed for the pose so that it's not affected by other random processes
         self.pose_rng = np.random.default_rng(42)
+        self.gt_pose_rng = np.random.default_rng(42)
         np.random.seed(42)
 
         # to visualize the trajectory path
@@ -344,7 +346,7 @@ class PickCubeEnv(MujocoEnv):
 
         return physics
 
-    def reset(self, options=None):
+    def reset(self, options=None, random_pose=None):
         # Initialize action positions list
         self.action_positions_used = []
         self.action_quats_used = []
@@ -369,27 +371,28 @@ class PickCubeEnv(MujocoEnv):
         self.physics.reset()
 
         # obj position limit
-        random_position = [
-            self.pose_rng.uniform(-0.10, 0.10),
-            self.pose_rng.uniform(0.45, 0.65),
-            self.pose_rng.uniform(0.1, 0.2),
-        ]
+        if random_pose is None:
+            random_position = [
+                self.pose_rng.uniform(-0.10, 0.10),
+                self.pose_rng.uniform(0.45, 0.65),
+                self.pose_rng.uniform(0.1, 0.2),
+            ]
 
-        random_quat = euler.euler2quat(
-            0,
-            0,
-            np.pi * self.pose_rng.uniform(-1, 1),
-        )
+            random_quat = euler.euler2quat(
+                0,
+                0,
+                np.pi * self.pose_rng.uniform(-1, 1),
+            )
 
-        random_pose = [
-            random_position[0],
-            random_position[1],
-            random_position[2],
-            random_quat[0],
-            random_quat[1],
-            random_quat[2],
-            random_quat[3],
-        ]
+            random_pose = [
+                random_position[0],
+                random_position[1],
+                random_position[2],
+                random_quat[0],
+                random_quat[1],
+                random_quat[2],
+                random_quat[3],
+            ]
 
         self.random_init_poses.append(random_pose)
 
@@ -497,6 +500,200 @@ class PickCubeEnv(MujocoEnv):
         self.step_num += 1
 
         return obs, reward, terminated, truncated, info
+    
+    def generate_gt_from_real_failure(self, options=None):
+        episode_idx = 0
+        failure_idx = 0
+
+        current_file_path = os.getcwd()
+
+        # Construct the dataset path
+        dataset_path = os.path.join(
+            current_file_path,
+            self.configs["gt_dataset_dir_name"],
+            "pick_cube",
+            ' + '.join(self.randomizations_to_apply),  # Assuming dynamic is a list/dict of strings
+        )
+
+        logs_path = os.path.join(dataset_path, 'logs.txt')
+        
+        if not os.path.exists(dataset_path):
+            os.makedirs(dataset_path)
+        else:
+            # If the directory already exists, delete directory and create a new one
+            import shutil
+            shutil.rmtree(dataset_path)
+            os.makedirs(dataset_path)
+            
+        with open(logs_path, 'w'):
+            pass  # This will create or clean the file
+
+        # read ood_eval.json
+        with open(os.path.join(current_file_path, "ood_eval.json"), "r") as f:
+            gt_init_poses = json.load(f)
+
+        gt_init_poses = gt_init_poses["episodes"]
+        failure_case_indices = set(self.configs["failure_case_indices"])
+
+        episode_idx = 0
+
+        for failure_episode_idx, gt_init_pose in enumerate(gt_init_poses):
+            if failure_episode_idx not in failure_case_indices:
+                continue
+            for episode_version in range(self.configs["num_gt_noise_poses"]):
+                
+                print(f"EPISODE: {failure_episode_idx}_{episode_version}")
+
+                init_pose = np.array(gt_init_pose)
+
+                # perturbation array:
+                if episode_version != 0:
+                    x_perturbation = self.gt_pose_rng.normal(0, self.configs["x_perturbation_range"])
+                    y_perturbation = self.gt_pose_rng.normal(0, self.configs["y_perturbation_range"])
+                    perturbation = np.array([x_perturbation, y_perturbation, 0, 0, 0, 0, 0]) # TODO add perturbation to quaternion values as well
+
+                    # TODO: check if we need to correct the quaternion values coming from the json file since they are real quaternion values
+                    init_pose = init_pose + perturbation
+                    init_pose = self.perturb_quat(init_pose)
+
+                _, info = self.reset(random_pose=init_pose)  # options[i])
+                (
+                    joint_traj,
+                    actions,
+                    qvels,
+                    hand_eye_frames,
+                    top_frames,
+                    hand_eye_depth_frames,
+                    top_depth_frames,
+                    render_frames,
+                    env_state,
+                ) = self.collect_data_sequence()
+                if (
+                    self.physics.named.data.qpos["unnamed_model/red_cube_joint/"][2] < 0.1
+                    or env_state < 3
+                ):
+                    print("FAILED")
+                    failure_idx += 1
+                    if self.configs["save_gifs"] and self.configs["save_failed_gifs"]:
+                        frames_to_gif(dataset_path, render_frames, episode_idx+1, failure_idx)
+                        
+                    continue
+                else:
+                    print("SUCCEED")
+                    episode_idx += 1
+                    failure_idx = 0
+                    
+                if self.configs["save_gifs"]:
+                    frames_to_gif(dataset_path, render_frames, failure_episode_idx, episode_version)
+                # 성공 trajectory 생성
+                # ================================================================================================ #
+                # 데이터 구조 설정
+
+                camera_names = ["hand_eye_cam", "top_cam"]
+                if self.configs["depth"]:
+                    camera_names += ["hand_eye_depth_cam", "top_depth_cam"]
+                    
+                data_dict = {
+                    "/observations/qpos": [],
+                    "/observations/qvel": [],
+                    "/action": [],
+                }
+                for cam_name in camera_names:
+                    data_dict[f"/observations/images/{cam_name}"] = []
+
+                if "salt_and_pepper" in self.randomizations_to_apply:
+                    hand_eye_frames = self.add_salt_and_pepper_noise(hand_eye_frames)
+                    top_frames = self.add_salt_and_pepper_noise(top_frames)
+                
+                if "HSV" in self.randomizations_to_apply:
+                    hand_eye_frames = self.randomize_hsv(hand_eye_frames)
+                    top_frames = self.randomize_hsv(top_frames)
+                
+                if "normalize" in self.randomizations_to_apply:
+                    hand_eye_frames = self.normalize_images(hand_eye_frames)
+                    top_frames = self.normalize_images(top_frames)
+
+                data_dict["/observations/qpos"] = joint_traj
+                data_dict["/observations/qvel"] = qvels
+                data_dict["/action"] = actions
+                data_dict[f"/observations/images/hand_eye_cam"] = hand_eye_frames
+                data_dict[f"/observations/images/top_cam"] = top_frames
+                if self.configs["depth"]:
+                    data_dict[f"/observations/images/hand_eye_depth_cam"] = hand_eye_depth_frames
+                    data_dict[f"/observations/images/top_depth_cam"] = top_depth_frames
+
+                max_timesteps = len(joint_traj)
+
+                with h5py.File(
+                    os.path.join(dataset_path, f"episode_{failure_episode_idx}_{episode_version}.hdf5"),
+                    "w",
+                    rdcc_nbytes=1024**2 * 2,
+                ) as root:
+                    root.attrs["sim"] = True
+                    root.attrs["info"] = info["generated_cube_pose"]
+                    obs = root.create_group("observations")
+                    image = obs.create_group("images")
+                    for cam_name in camera_names:
+                        if 'depth' in cam_name:
+                            _ = image.create_dataset(
+                            cam_name, (max_timesteps, 480 // 2, 640 // 2), compression="gzip", compression_opts=9
+                            )
+                        else:
+                            _ = image.create_dataset(
+                                cam_name,
+                                (max_timesteps, 480 // 2, 640 // 2, 3),
+                                dtype="uint8",
+                                chunks=(1, 480 // 2, 640 // 2, 3),
+                                compression="gzip",
+                                compression_opts=9,
+                            )
+                    qpos = obs.create_dataset(
+                        "qpos", (max_timesteps, 7), compression="gzip", compression_opts=9
+                    )
+                    qvel = obs.create_dataset(
+                        "qvel", (max_timesteps, 7), compression="gzip", compression_opts=9
+                    )
+                    action = root.create_dataset(
+                        "action", (max_timesteps, 8), compression="gzip", compression_opts=9
+                    )
+
+                    for name, array in data_dict.items():
+                        root[name][...] = array
+
+                # add random dynamics actual values to the log file
+                random_dynamics_actual_values = {}
+
+                for dynamics_group_name, dynamics_group in self.random_dynamics_groups.items():
+                    if dynamics_group_name in self.models:
+                        for dynamics_elements in dynamics_group.values():
+                            for dynamics_element in dynamics_elements.keys():
+                                if dynamics_element == "gravity":
+                                    actual_value = self.models[dynamics_group_name].option.gravity[2]
+                                else:
+                                    desc, props = dynamics_element.split("|")
+                                    desc_type, desc_name = desc.split(".")
+                                    props = props.split(".")
+
+                                    actual_value = self.get_nested_property(
+                                        self.models[dynamics_group_name].find(desc_type, desc_name), props
+                                    )
+                                random_dynamics_actual_values[dynamics_element] = actual_value
+
+                # log_message = f"Episode {episode_idx-1}:\n"
+                # for random_dynamics_actual_value_name, random_dynamics_actual_value in random_dynamics_actual_values.items():
+                #     log_message += f"{random_dynamics_actual_value_name}: {random_dynamics_actual_value}\n"            
+                
+                formatted_pose = [f"{x:.3f}" for x in info['generated_cube_pose']]
+                # log_message += f"Init Pose: {formatted_pose}\n"
+                log_message = f"{formatted_pose}\n"
+
+                with open(logs_path, 'a') as file:
+                    file.write(log_message)
+
+                print(f"Episode {failure_episode_idx}_{episode_version} is saved")
+
+                # close the environment
+                self.close()
 
     def collect_data(self, options=None):
         episode_idx = 0
@@ -524,24 +721,7 @@ class PickCubeEnv(MujocoEnv):
             
         with open(logs_path, 'w'):
             pass  # This will create or clean the file
-        
-        for i in range(200):
-            # obj position limit
-            random_position = [
-                self.pose_rng.uniform(-0.10, 0.10),
-                self.pose_rng.uniform(0.45, 0.65),
-                self.pose_rng.uniform(0.1, 0.2),
-            ]
 
-            random_quat = euler.euler2quat(
-                0,
-                0,
-                np.pi * self.pose_rng.uniform(-1, 1),
-            )
-
-        for i in range(20):
-            print("#" * 50)
-        # for i in range(100):
         while episode_idx < self.configs["num_episodes"]:
             print(f"EPISODE: {episode_idx}")
             _, info = self.reset()  # options[i])
@@ -1312,3 +1492,51 @@ class PickCubeEnv(MujocoEnv):
         cv2.line(image, global_origin, global_z_axis_end, (255, 255*lightness, 255*lightness), 2)
         
         return image
+    
+
+    """
+    ..######...########
+    .##....##.....##...
+    .##...........##...
+    .##...####....##...
+    .##....##.....##...
+    .##....##.....##...
+    ..######......##...
+    ...........######...########.##....##.########.########.....###....########.####..#######..##....##
+    ..........##....##..##.......###...##.##.......##.....##...##.##......##.....##..##.....##.###...##
+    ..........##........##.......####..##.##.......##.....##..##...##.....##.....##..##.....##.####..##
+    ..........##...####.######...##.##.##.######...########..##.....##....##.....##..##.....##.##.##.##
+    ..........##....##..##.......##..####.##.......##...##...#########....##.....##..##.....##.##..####
+    ..........##....##..##.......##...###.##.......##....##..##.....##....##.....##..##.....##.##...###
+    ...........######...########.##....##.########.##.....##.##.....##....##....####..#######..##....##
+"""
+
+    def perturb_quat(self, pose):
+        """
+        Perturb a quaternion with Gaussian noise.
+        
+        Parameters:
+        - quat (numpy array): Pose
+        - noise_level (float): Standard deviation of the Gaussian noise
+        
+        Returns:
+        - perturbed_quat (numpy array): Perturbed quaternion (4D)
+        """
+
+        quat = pose[-4:]
+        
+        # Perturb the quaternion with Gaussian noise
+        noise = self.gt_pose_rng.normal(0, self.configs["quat_perturbation_range"])
+
+        # convert quat to euler
+        euler_angles = np.array(euler.quat2euler(quat))
+
+        # perturb yaw only
+        euler_angles[2] += noise
+
+        # convert euler back to quat
+        perturbed_quat = euler.euler2quat(*euler_angles)
+
+        pose[-4:] = perturbed_quat
+        
+        return pose
