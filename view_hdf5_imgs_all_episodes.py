@@ -58,15 +58,15 @@ for file in files:
             img = np.array([convert_array_to_pil(img) for img in img])
 
         # make image transparent with 50% opacity
-        if "0_0" in file:
+        if "6_0" in file:
             output = img
-        elif "_0" in file:
+        elif "_0." in file:
             # opacity = 1/(episode+1)
             # output = (img*opacity + output*(1-opacity)).astype("uint8")
             output[np.abs(output[..., 0]-img[..., 0])>2] = [255, 0, 0]
 
 for file in files:
-    if "_0" in file:
+    if "_0.hdf5" in file:
         continue
     print(file)
     
@@ -89,20 +89,22 @@ for file in files:
             img = np.array([convert_array_to_pil(img) for img in img])
 
         # make image transparent with 50% opacity
-        if "0_1" in file:
+        if "6_1" in file:
             output_noise = img
         else:
             # opacity = 1/(episode+1)
             # output_noise = (img*opacity + output_noise*(1-opacity)).astype("uint8")
             output_noise[np.abs(output_noise[..., 0]-img[..., 0])>2] = [255, 0, 255]
 
-opacity = 0.25
+opacity = 0.5
 output[np.abs(output[..., 0]-output_noise[..., 0])>2] = (1-opacity)*output[np.abs(output[..., 0]-output_noise[..., 0])>2] + opacity*output_noise[np.abs(output[..., 0]-output_noise[..., 0])>2]
 
 img_idx = 0
 
 while(True):
-    cv2.imshow(f"top_cam_{category}", output[img_idx][...,::-1])
+    # resize image to fit screen
+    output_img = cv2.resize(output[img_idx], (640*2, 480*2))
+    cv2.imshow(f"top_cam_{category}", output_img[...,::-1])
     c = cv2.waitKey(0)
     if c==27:    # Esc key to stop
         break

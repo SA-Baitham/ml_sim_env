@@ -14,7 +14,7 @@ import copy
 ## load hdf5
 
 # category = "robot_color"
-dataset_path = "/home/ahmed/Desktop/workspace/ml_sim_env/dataset_for_training_corrected_orientation/pick_cube"
+dataset_path = "/home/ahmed/Desktop/workspace/ml_sim_env/dataset_failure_gt/pick_cube"
 
 categories = os.listdir(dataset_path)
 num_categories = len(categories)
@@ -40,12 +40,15 @@ def convert_array_to_pil(depth_map):
 # files = glob(filename+"/*.hdf5")
 num_episodes = len(glob(f"{dataset_path}/{categories[0]}/*.hdf5"))
 
+files = sorted(glob(f"{dataset_path}/{categories[0]}/*.hdf5"))
+
 break_all = False
 for episode in range(num_episodes):
         print(f"EPISODE: {episode}")
         synced_images = []
         for i, category in enumerate(categories):
             file = f"{dataset_path}/{category}/episode_{episode}.hdf5"
+            file = files[episode]
             print(f"{i}. {category}: {file}")
             if break_all:
                 break
@@ -64,7 +67,7 @@ for episode in range(num_episodes):
                 # print(observations['images']['top_cam'].shape) 
 
                 # cam = 'hand_eye_depth_cam'
-                cam = 'top_cam'
+                cam = 'hand_eye_cam'
                 
                 imgs = observations['images'][cam]
 

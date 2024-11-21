@@ -6,6 +6,7 @@ logs
 dataset*
 dataset_ur5e_wrist_a8q7_real
 logs*
+pretrained_ckpt
 
 # Byte-compiled / optimized / DLL files
 *.py[cod]

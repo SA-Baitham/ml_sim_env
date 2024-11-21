@@ -11,7 +11,7 @@ from enum import IntEnum
 from .mujoco_ur5 import UR5Robotiq, DEG2CTRL
 from .mujoco_env import MujocoEnv
 from ..trajectory_generator import JointTrajectory, interpolate_trajectory
-from ..utils import Pose, get_best_orn_for_gripper, frames_to_gif
+from ..utils import Pose, get_best_orn_for_gripper, frames_to_gif, sizeof_fmt
 
 from .mujoco_robot import MujocoRobot
 from PIL import Image
@@ -19,6 +19,8 @@ import cv2
 from scipy.spatial.transform import Rotation as R
 
 import json
+import os, psutil
+import sys
 
 class EnvState(IntEnum):
     APPROACH = 0
@@ -39,6 +41,7 @@ class PickCubeEnv(MujocoEnv):
         randomizations_to_apply: dict = {},
         configs: dict = {},
     ):
+        self.prev_size_info = {}
         self.configs = configs
         self.randomizations_to_apply = randomizations_to_apply
         
@@ -212,8 +215,8 @@ class PickCubeEnv(MujocoEnv):
         # spawn the render camera
         robot_model_spawn_pos = (0, 0, 0.145)
         robot_pos = np.array([robot_model_spawn_pos[0], robot_model_spawn_pos[1], robot_model_spawn_pos[2] + 0.6])
-        table_model_spawn_pos = (0, 0, 0)
-        table_pos = np.array([table_model_spawn_pos[0], table_model_spawn_pos[1], table_model_spawn_pos[2] + 0.35])
+        table_model_spawn_pos = (0, 0.55, 0)
+        table_pos = np.array([table_model_spawn_pos[0], table_model_spawn_pos[1], table_model_spawn_pos[2] + 0.15])
         
         if self.configs:
             render_cam_pos = self.configs["render_cam_pos"]
@@ -265,22 +268,22 @@ class PickCubeEnv(MujocoEnv):
         )
 
         # table under the robot
-        # box_model2 = mjcf.from_xml_string(
-        #     """<mujoco>
-        #         <asset>
-        #             <material name="shiny" specular="0.5" shininess="0.8" />
-        #         </asset>
-        #         <worldbody>
-        #             <body name="box" pos="0 0 0">
-        #                 <geom type="box" size="0.255 0.255 0.145" rgba="0.2 0.2 0.2 1" material="shiny" />
-        #             </body>
-        #         </worldbody>
-        #     </mujoco>"""
-        # )
+        box_model2 = mjcf.from_xml_string(
+            """<mujoco>
+                <asset>
+                    <material name="shiny" specular="0.5" shininess="0.8" />
+                </asset>
+                <worldbody>
+                    <body name="box" pos="0 0 0">
+                        <geom type="box" size="0.255 0.255 0.145" rgba="0.2 0.2 0.2 1" material="shiny" />
+                    </body>
+                </worldbody>
+            </mujoco>"""
+        )
 
-        # spawn_pos = (0, 0, 0.0)
-        # spawn_site = world_model.worldbody.add("site", pos=spawn_pos, group=3)
-        # spawn_site.attach(box_model2)
+        spawn_pos = (0, 0, 0.0)
+        spawn_site = world_model.worldbody.add("site", pos=spawn_pos, group=3)
+        spawn_site.attach(box_model2)
 
         if "table_color" in self.randomizations_to_apply:
             color = np.random.randint(0, 255, 3)
@@ -540,7 +543,14 @@ class PickCubeEnv(MujocoEnv):
         for failure_episode_idx, gt_init_pose in enumerate(gt_init_poses):
             if failure_episode_idx not in failure_case_indices:
                 continue
-            for episode_version in range(self.configs["num_gt_noise_poses"]):
+            
+            episode_version = 0
+            failure_idx = 0
+            
+            while episode_version < self.configs["num_gt_noise_poses"]:
+                if failure_idx >= 10:
+                    print("FAILED 10 TIMES IN A ROW AT EPISODE", failure_episode_idx)
+                    break
                 
                 print(f"EPISODE: {failure_episode_idx}_{episode_version}")
 
@@ -580,11 +590,12 @@ class PickCubeEnv(MujocoEnv):
                     continue
                 else:
                     print("SUCCEED")
+                    if self.configs["save_gifs"]:
+                        frames_to_gif(dataset_path, render_frames, failure_episode_idx, episode_version)
+
                     episode_idx += 1
                     failure_idx = 0
-                    
-                if self.configs["save_gifs"]:
-                    frames_to_gif(dataset_path, render_frames, failure_episode_idx, episode_version)
+                    episode_version += 1
                 # 성공 trajectory 생성
                 # ================================================================================================ #
                 # 데이터 구조 설정
@@ -625,7 +636,7 @@ class PickCubeEnv(MujocoEnv):
                 max_timesteps = len(joint_traj)
 
                 with h5py.File(
-                    os.path.join(dataset_path, f"episode_{failure_episode_idx}_{episode_version}.hdf5"),
+                    os.path.join(dataset_path, f"episode_{failure_episode_idx}_{episode_version-1}.hdf5"),
                     "w",
                     rdcc_nbytes=1024**2 * 2,
                 ) as root:
@@ -690,7 +701,22 @@ class PickCubeEnv(MujocoEnv):
                 with open(logs_path, 'a') as file:
                     file.write(log_message)
 
-                print(f"Episode {failure_episode_idx}_{episode_version} is saved")
+                # print(f"Episode {failure_episode_idx}_{episode_version-1} is saved")
+
+                # for name, size in sorted(((name, sys.getsizeof(value)) for name, value in list(
+                #           locals().items())), key= lambda x: -x[1])[:10]:
+                #     self.prev_size_info[name] = size
+                #     print("{:>30}: {:>8}".format(name, size - self.prev_size_info.get(name, size)))
+
+                # for name, size in sorted(((name, sys.getsizeof(value)) for name, value in list(
+                #           globals().items())), key= lambda x: -x[1])[:10]:
+                #     self.prev_size_info[name] = size
+                #     print("{:>30}: {:>8}".format(name, size - self.prev_size_info.get(name, size)))
+
+                # for name, size in sorted(((name, sys.getsizeof(value)) for name, value in list(
+                #           vars(self).items())), key= lambda x: -x[1])[:10]:
+                #     self.prev_size_info[name] = size
+                #     print("{:>30}: {:>8}".format(name, size - self.prev_size_info.get(name, size)))
 
                 # close the environment
                 self.close()
@@ -1065,6 +1091,9 @@ class PickCubeEnv(MujocoEnv):
                         top_frames[-1] = self.visualize_trajectory_path(self.action_positions_used, self.action_quats_used, top_frames[-1], self.cameras[self.trajectory_cam].matrices())
                     if self.configs["show_saved_ee_axis"]:
                         top_frames[-1] = self.visualize_trajectory_path(self.action_positions_saved, self.action_quats_saved, top_frames[-1], self.cameras[self.trajectory_cam].matrices(), lightness=0.5)
+
+                if self.configs["show_bounding_box"]:
+                    render_frames[-1] = self.draw_in_distribution_bounding_box(render_frames[-1], self.cameras["render_cam"].matrices())
 
                 # Display the frames
                 if self.configs["render"]:
@@ -1490,6 +1519,86 @@ class PickCubeEnv(MujocoEnv):
         cv2.line(image, global_origin, global_x_axis_end, (255*lightness, 255*lightness, 255), 2)  # Red: x-axis
         cv2.line(image, global_origin, global_y_axis_end, (255*lightness, 255, 255*lightness), 2)
         cv2.line(image, global_origin, global_z_axis_end, (255, 255*lightness, 255*lightness), 2)
+        
+        return image
+    
+    def draw_in_distribution_bounding_box(self, image, cam_matrices):
+        """
+        Draw the in-distribution bounding box on the table.
+
+        Parameters:
+        - image (numpy array): The image to draw the bounding box on
+        - cam_matrices (CameraMatrices): The camera matrices
+
+        Returns:
+        - image (numpy array): The image with the bounding box
+        """
+
+        # Draw lines of the bounding box
+        # bounding boxes x and y limits (z is fixed as 0):
+        # x: -0.1 to 0.1
+        # y: 0.45 to 0.65
+
+        # convert image to opencv format
+        image = np.copy(image)
+
+        # Define the bounding box limits
+        x_limits = [-0.1, 0.1]
+        y_limits = [0.45, 0.65]
+        z = 0
+
+        # Define the corners of the bounding box
+        corners = [
+            [x_limits[0], y_limits[0], z],
+            [x_limits[0], y_limits[1], z],
+            [x_limits[1], y_limits[1], z],
+            [x_limits[1], y_limits[0], z],
+            [x_limits[0], y_limits[0], z]
+        ]
+
+        # Map the corners to 2D image coordinates
+        corners_image = self.map_position_to_image(corners, cam_matrices)
+
+        # Draw the bounding box
+        for i in range(len(corners_image) - 1):
+            pt1 = tuple(corners_image[i].astype(int))
+            pt2 = tuple(corners_image[i + 1].astype(int))
+            cv2.line(image, pt1, pt2, (0, 255, 0), 1)
+
+        # Define the bounding box limits
+        x_limits = [-0.2, 0.2]
+        y_limits = [0.4, 0.75]
+        z = 0
+
+        # Define the corners of the bounding box
+        corners = [
+            [x_limits[0], y_limits[0], z],
+            [x_limits[0], y_limits[1], z],
+            [x_limits[1], y_limits[1], z],
+            [x_limits[1], y_limits[0], z],
+            [x_limits[0], y_limits[0], z]
+        ]
+
+        # Map the corners to 2D image coordinates
+        corners_image = self.map_position_to_image(corners, cam_matrices)
+
+        # Draw the bounding box
+        for i in range(len(corners_image) - 1):
+            pt1 = tuple(corners_image[i].astype(int))
+            pt2 = tuple(corners_image[i + 1].astype(int))
+            cv2.line(image, pt1, pt2, (255, 0, 0), 1)
+
+        return image
+        
+
+
+
+
+        # Copy the image to avoid modifying the original
+        image = np.copy(self.image)
+        
+        # Draw the bounding box
+        cv2.rectangle(image, (self.bbox[0], self.bbox[1]), (self.bbox[2], self.bbox[3]), (0, 255, 0), 2)
         
         return image
     

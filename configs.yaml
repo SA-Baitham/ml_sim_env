@@ -8,24 +8,27 @@ num_light_sources: 5 # Number of light sources to add for light_source randomiza
 # Task options
 num_episodes: 50 # Number of episodes to generate
 dataset_dir_name: "dataset_dev_depth" # Path to save the dataset
-depth: True
+depth: False
 
 # Regeneration of GT for real failure episodes options
 gt_dataset_dir_name: "dataset_failure_gt" # Path to save the ground truth dataset
-num_gt_noise_poses: 5 # Number of perturbed ground truth poses to generate (including the original pose)
-x_perturbation_range: 0.01 # x perturbation range for ground truth poses
-y_perturbation_range: 0.01 # y perturbation range for ground truth poses
-quat_perturbation_range: 0.1 # quat perturbation range for ground truth poses
-failure_case_indices: [0, 3, 5, 6, 8, 9, 10, 11, 12, 13, 16, 17, 20, 21, 22, 23, 24, 25, 27, 28, 29] # Indices of the failure cases to regenerate ground truth poses
+num_gt_noise_poses: 4 # Number of perturbed ground truth poses to generate (including the original pose)
+x_perturbation_range: 0.025 # x perturbation range for ground truth poses
+y_perturbation_range: 0.025 # y perturbation range for ground truth poses
+quat_perturbation_range: 0.5 # quat perturbation range for ground truth poses
+failure_case_indices: [6] # Indices of the failure cases to regenerate ground truth poses
+# failure_case_indices: [0, 3, 5, 6, 8, 9, 10, 11, 12, 13, 16, 17, 20, 21, 22, 23, 24, 25, 27, 28, 29] # Indices of the failure cases to regenerate ground truth poses
+
 
 # Rendering options
 render: False # Display simulation window
-render_cam_pos: [-1, -0.5, 0.75] # Position of camera used for gifs
-save_gifs: False # Save gifs of the simulation
+render_cam_pos: [-0.5, -0.2, 1] # Position of camera used for gifs
+save_gifs: True # Save gifs of the simulation
 save_failed_gifs: False # Save gifs of the simulation when the task fails
-trajectory_cam: 'render_cam' # Camera to use for trajectory path visualization, None to disable
-show_used_ee_axis: True # Show the axis of the end effector used for the task
-show_saved_ee_axis: True # Show the axis of the end effector saved in the dataset
+trajectory_cam: '' # Camera to use for trajectory path visualization, None to disable
+show_used_ee_axis: False # Show the axis of the end effector used for the task
+show_saved_ee_axis: False # Show the axis of the end effector saved in the dataset
+show_bounding_box: True # Show the bounding box of in-distribution cube init pose training range
 
 randomization_list: [
     {'clean'}, 
