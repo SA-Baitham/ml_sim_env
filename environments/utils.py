@@ -121,6 +121,39 @@ def get_best_orn_for_gripper(reference_orn: np.ndarray, query_orn: np.ndarray):
         return other_orn
     return query_orn
 
+def get_best_orn_for_gripper_cube(reference_orn: np.ndarray, query_orn: np.ndarray):
+    distance_to_reference = []
+    orns = []
+
+    # rotate gripper about z-axis, choose the closer one
+    for i in range(4):
+        other_orn = quaternions.qmult(
+        euler.euler2quat(0, 0, i * np.pi / 2),
+        query_orn,
+        )
+
+        orns.append(other_orn)
+
+        distance_to_reference.append(Pose.orientation_distance(reference_orn, other_orn))
+
+    idx_min = np.argmin(distance_to_reference)
+
+    return orns[idx_min]
+        
+
+
+
+        # # rotate gripper about z-axis, choose the closer one
+        # other_orn = quaternions.qmult(
+        #     euler.euler2quat(0, 0, np.pi),
+        #     query_orn,
+        # )
+        # if Pose.orientation_distance(reference_orn, other_orn) < Pose.orientation_distance(
+        #     reference_orn, query_orn
+        # ):
+        #     return other_orn
+        # return query_orn
+
 def frames_to_gif(dataset_path, render_frames, episode_idx, failure_idx=0):
     print("Saving gif file...")
     # save the render_frames into 

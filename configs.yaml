@@ -1,16 +1,9 @@
-# Configuration file for randomization
-make_mujoco_same_as_real: True # Make the simulation generated poses follow same frames as in real world
-make_real_same_as_mujoco: False # Make the real world generated poses follow same frames as in simulation
-
-# Vision randomization options
-num_light_sources: 5 # Number of light sources to add for light_source randomization
-
-# Task options
+# Task options for `collect_data.py` script
 num_episodes: 50 # Number of episodes to generate
 dataset_dir_name: "dataset_dev_depth" # Path to save the dataset
-depth: False
 
-# Regeneration of GT for real failure episodes options
+# Regeneration of GT for real failure episodes options, used with `generate_gt.py` script
+real_dataset_path: "/home/ahmed/Desktop/workspace/ml_sim_env/dataset_150_real" # Path to the real dataset
 gt_dataset_dir_name: "dataset_failure_gt" # Path to save the ground truth dataset
 num_gt_noise_poses: 4 # Number of perturbed ground truth poses to generate (including the original pose)
 x_perturbation_range: 0.025 # x perturbation range for ground truth poses
@@ -19,19 +12,28 @@ quat_perturbation_range: 0.5 # quat perturbation range for ground truth poses
 failure_case_indices: [6] # Indices of the failure cases to regenerate ground truth poses
 # failure_case_indices: [0, 3, 5, 6, 8, 9, 10, 11, 12, 13, 16, 17, 20, 21, 22, 23, 24, 25, 27, 28, 29] # Indices of the failure cases to regenerate ground truth poses
 
+# Common options
+
+# Configuration file for randomization
+make_mujoco_same_as_real: True # Make the simulation generated poses follow same frames as in real world
+make_real_same_as_mujoco: False # Make the real world generated poses follow same frames as in simulation
+
+# Vision randomization options
+num_light_sources: 5 # Number of light sources to add for light_source randomization
+depth: False # Use depth images
 
 # Rendering options
 render: False # Display simulation window
-render_cam_pos: [-0.5, -0.2, 1] # Position of camera used for gifs
+render_cam_pos: [-0.75, -0.5, 1] # Position of camera used for gifs
 save_gifs: True # Save gifs of the simulation
-save_failed_gifs: False # Save gifs of the simulation when the task fails
+save_failed_gifs: True # Save gifs of the simulation when the task fails
 trajectory_cam: '' # Camera to use for trajectory path visualization, None to disable
 show_used_ee_axis: False # Show the axis of the end effector used for the task
 show_saved_ee_axis: False # Show the axis of the end effector saved in the dataset
 show_bounding_box: True # Show the bounding box of in-distribution cube init pose training range
 
 randomization_list: [
-    {'clean'}, 
+    # {'clean'}, 
     # Dynamic parameters
     # {"link_mass"}, 
     # {"joint_damping"}, 
@@ -50,9 +52,12 @@ randomization_list: [
     # {"normalize"},
     # {"HSV"},
     # {"salt_and_pepper"},
+    {"real_cube"},
     # {"SAM"},
-  ]
 
+    # All
+    # {"real_cube", "link_mass", "joint_damping", "joint_friction", "actuator_gain", "link_inertia", "joint_stiffness", "gravity", "light_source", "object_color", "robot_color", "table_color", "real_floor", "HSV", "salt_and_pepper"}
+  ]
 
 # random dynamics configs
 random_dynamics:

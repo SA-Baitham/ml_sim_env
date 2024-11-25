@@ -11,7 +11,7 @@ from enum import IntEnum
 from .mujoco_ur5 import UR5Robotiq, DEG2CTRL
 from .mujoco_env import MujocoEnv
 from ..trajectory_generator import JointTrajectory, interpolate_trajectory
-from ..utils import Pose, get_best_orn_for_gripper, frames_to_gif, sizeof_fmt
+from ..utils import Pose, get_best_orn_for_gripper, frames_to_gif, sizeof_fmt, get_best_orn_for_gripper_cube
 
 from .mujoco_robot import MujocoRobot
 from PIL import Image
@@ -21,6 +21,8 @@ from scipy.spatial.transform import Rotation as R
 import json
 import os, psutil
 import sys
+from glob import glob
+import random
 
 class EnvState(IntEnum):
     APPROACH = 0
@@ -254,15 +256,30 @@ class PickCubeEnv(MujocoEnv):
         else:
             rgba_color = np.array([1.0, 0.0, 0.0, 1])
 
-        box_model = mjcf.from_xml_string(
-            f"""<mujoco>
-            <worldbody>
-                <body name="box" pos="0 0 0" >
-                    <geom type="box" size="0.015 0.015 0.015" rgba="{rgba_color[0]} {rgba_color[1]} {rgba_color[2]} {rgba_color[3]}" />
-                </body>
-            </worldbody>
-        </mujoco>"""
-        )
+        if "real_cube" in self.randomizations_to_apply:
+            box_model = mjcf.from_xml_string(
+                """<mujoco>
+                <asset>
+                    <texture name="cube_texture" type="2d" file="/home/ahmed/Desktop/workspace/ml_sim_env/environments/assets/source/red_cube_surface.png" />
+                    <material name="cube_material" texture="cube_texture" />
+                </asset>
+                <worldbody>
+                    <body name="box" pos="0 0 0" >
+                        <geom name="cube_box" type="box" size="0.02 0.02 0.02" material="cube_material"/>
+                    </body>
+                </worldbody>
+            </mujoco>"""
+            )
+        else:
+            box_model = mjcf.from_xml_string(
+                f"""<mujoco>
+                <worldbody>
+                    <body name="box" pos="0 0 0" >
+                        <geom type="box" size="0.015 0.015 0.015" rgba="{rgba_color[0]} {rgba_color[1]} {rgba_color[2]} {rgba_color[3]}" />
+                    </body>
+                </worldbody>
+            </mujoco>"""
+            )
         world_model.worldbody.attach(box_model).add(
             "joint", type="free", damping=0.01, name="red_cube_joint"
         )
@@ -636,7 +653,8 @@ class PickCubeEnv(MujocoEnv):
                 max_timesteps = len(joint_traj)
 
                 with h5py.File(
-                    os.path.join(dataset_path, f"episode_{failure_episode_idx}_{episode_version-1}.hdf5"),
+                    # os.path.join(dataset_path, f"episode_{failure_episode_idx}_{episode_version-1}.hdf5"),
+                    os.path.join(dataset_path, f"episode_{episode_idx-1}.hdf5"),
                     "w",
                     rdcc_nbytes=1024**2 * 2,
                 ) as root:
@@ -720,6 +738,22 @@ class PickCubeEnv(MujocoEnv):
 
                 # close the environment
                 self.close()
+
+        # add episodes from the real world
+        num_sim_episodes = len(glob(os.path.join(dataset_path, "*.hdf5")))
+        num_real_episodes = 0
+        real_episodes = glob(os.path.join(self.configs['real_dataset_path'], "*.hdf5"))
+        random.shuffle(real_episodes)
+        
+        while num_sim_episodes > num_real_episodes:
+            if len(real_episodes) == 0:
+                real_episodes = random.shuffle(glob(os.path.join(self.configs['real_dataset_path'], "*.hdf5")))
+                random.shuffle(real_episodes)
+
+            src = real_episodes.pop()
+            dst = os.path.join(dataset_path, f"episode_{num_sim_episodes + num_real_episodes}.hdf5")
+            os.symlink(src, dst)
+            num_real_episodes += 1
 
     def collect_data(self, options=None):
         episode_idx = 0
@@ -909,7 +943,6 @@ class PickCubeEnv(MujocoEnv):
         for i, num in enumerate(rot_mat[2, :]):
             if (num <= -0.9) or (num >= 0.9):
                 axis_num = i
-        euler_ = euler.quat2euler(cur_qpos[-4:])
 
         terminated = False
 
@@ -937,7 +970,8 @@ class PickCubeEnv(MujocoEnv):
             quat = euler.euler2quat(-0.0, 0.0, euler_[axis_num])  # twist
 
             end_effector_pose = self.ur5_robotiq.get_end_effector_pose()
-            quat = get_best_orn_for_gripper(end_effector_pose.orientation, quat)
+            # quat = get_best_orn_for_gripper(end_effector_pose.orientation, quat)
+            quat = get_best_orn_for_gripper_cube(end_effector_pose.orientation, quat)
 
             target_pos.orientation[:] = quat
 
@@ -1625,7 +1659,7 @@ class PickCubeEnv(MujocoEnv):
         Perturb a quaternion with Gaussian noise.
         
         Parameters:
-        - quat (numpy array): Pose
+        - pose (numpy array): Pose
         - noise_level (float): Standard deviation of the Gaussian noise
         
         Returns:
@@ -1649,3 +1683,54 @@ class PickCubeEnv(MujocoEnv):
         pose[-4:] = perturbed_quat
         
         return pose
+    
+    def rotate_end_effector(self, quat, rot_val):
+        """
+        Perturb a quaternion with Gaussian noise.
+        
+        Parameters:
+        - quat (numpy array): quaternion values
+        - rot_val (float): rotation value
+        
+        Returns:
+        - quat (numpy array): rotated quaternions
+        """
+
+        # convert quat to euler
+        euler_angles = np.array(euler.quat2euler(quat))
+
+        # perturb yaw only
+        euler_angles[2] += rot_val
+
+        # convert euler back to quat
+        quat = euler.euler2quat(*euler_angles)
+        
+        return quat
+    
+    def choose_to_left_orientation(self, quat):
+        """
+        Choose an inward orientation for the end-effector.
+        
+        Parameters:
+        - quat (numpy array): quaternion values
+        
+        Returns:
+        - quat (numpy array): rotated quaternions
+        """
+        # euler to_left rotation
+        to_left_euler = np.array([np.pi, 0, 0])
+
+        # convert quat to euler
+        quat = euler.quat2euler(quat)
+
+        # other side quat (yaw rotated by np.pi)
+        other_quat = np.array([quat[0], quat[1], quat[2] + np.pi])
+
+        # compare quat with to_left_quat, if quat with yaw rotated by np.pi is closer to to_left_quat, then add np.pi to quat
+        if np.linalg.norm(to_left_euler - quat) > np.linalg.norm(to_left_euler - other_quat):
+            quat = other_quat
+
+        # convert euler back to quat
+        quat = euler.euler2quat(*quat)
+
+        return quat

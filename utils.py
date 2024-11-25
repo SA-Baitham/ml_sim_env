@@ -4,6 +4,7 @@ import os
 import h5py
 from einops import rearrange
 from torch.utils.data import DataLoader
+from glob import glob
 
 from policy import ACTPolicy, CNNMLPPolicy
 class EpisodicDataset(torch.utils.data.Dataset):
@@ -109,26 +110,41 @@ def get_norm_stats(dataset_dir, num_episodes):
 
 def load_data(task_config, batch_size):
     dataset_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), task_config.dataset_dir)
+    real_dataset_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), task_config.real_dataset_dir)
     num_episodes = task_config.num_episodes
     camera_names = task_config.camera_names
     # print("camera_names", camera_names)
+
+    num_real_episodes = len(glob(real_dataset_dir + "/*.hdf5"))
 
     print(f'\nData from: {dataset_dir}\n')
 
     # obtain train test split
     train_ratio = 0.8
     shuffled_indices = np.random.permutation(num_episodes)
-    train_indices = shuffled_indices[:int(train_ratio * num_episodes)]
-    val_indices = shuffled_indices[int(train_ratio * num_episodes):]
+    if task_config.fine_tune:
+        train_indices = shuffled_indices
+        val_indices = np.random.permutation(num_real_episodes)
+    else:
+        train_indices = shuffled_indices[:int(train_ratio * num_episodes)]
+        val_indices = shuffled_indices[int(train_ratio * num_episodes):]
 
     # obtain normalization stats for qpos and action
     norm_stats = get_norm_stats(dataset_dir, num_episodes)
 
     # construct dataset and dataloader
     train_dataset = EpisodicDataset(train_indices, dataset_dir, camera_names, norm_stats)
-    val_dataset = EpisodicDataset(val_indices, dataset_dir, camera_names, norm_stats)
+
+    if task_config.fine_tune:
+        val_dataset = EpisodicDataset(val_indices, real_dataset_dir, camera_names, norm_stats)
+    else:
+        val_dataset = EpisodicDataset(val_indices, dataset_dir, camera_names, norm_stats)
     train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, pin_memory=True, num_workers=1, prefetch_factor=1)
     val_dataloader = DataLoader(val_dataset, batch_size=batch_size, shuffle=True, pin_memory=True, num_workers=1, prefetch_factor=1)
+
+    # print number of episodes in train and val
+    print(f"Number of episodes in train: {len(train_indices)}")
+    print(f"Number of episodes in val: {len(val_indices)}")
 
     return train_dataloader, val_dataloader, norm_stats, train_dataset.is_sim
 
@@ -204,6 +220,8 @@ def make_policy(policy_config):
     # load checkpoint if available
     if policy_config.ckpt_path:
         policy.load_state_dict(torch.load(policy_config.ckpt_path))
+
+        # change optimizer lr for fine-tuning
         print(f'Loaded checkpoint from {policy_config.ckpt_path}')
 
     return policy

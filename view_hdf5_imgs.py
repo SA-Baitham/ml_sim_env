@@ -8,6 +8,7 @@ import matplotlib.cm as cm
 import torch
 import os
 import copy
+from environments.utils import frames_to_gif
 # from natsort import natsorted
 
 
@@ -40,7 +41,7 @@ def convert_array_to_pil(depth_map):
 # files = glob(filename+"/*.hdf5")
 num_episodes = len(glob(f"{dataset_path}/{categories[0]}/*.hdf5"))
 
-files = sorted(glob(f"{dataset_path}/{categories[0]}/*.hdf5"))
+files = {category: sorted(glob(f"{dataset_path}/{category}/*.hdf5")) for category in categories}
 
 break_all = False
 for episode in range(num_episodes):
@@ -48,7 +49,7 @@ for episode in range(num_episodes):
         synced_images = []
         for i, category in enumerate(categories):
             file = f"{dataset_path}/{category}/episode_{episode}.hdf5"
-            file = files[episode]
+            file = files[category][episode]
             print(f"{i}. {category}: {file}")
             if break_all:
                 break
@@ -67,7 +68,7 @@ for episode in range(num_episodes):
                 # print(observations['images']['top_cam'].shape) 
 
                 # cam = 'hand_eye_depth_cam'
-                cam = 'hand_eye_cam'
+                cam = 'top_cam'
                 
                 imgs = observations['images'][cam]
 
@@ -103,8 +104,12 @@ for episode in range(num_episodes):
 
         img_idx = 0
 
+        # save episode as a gif
+        frames_to_gif("episode_vid", grid_imgs, episode)
+
+
         while(True):
-            cv2.imshow(f"top_cam_{category}_{episode}", grid_imgs[img_idx][...,::-1])
+            cv2.imshow(f"{cam}_{category}_{episode}", grid_imgs[img_idx])
             c = cv2.waitKey(0)
             if c==27:    # Esc key to stop
                 break
@@ -120,77 +125,3 @@ for episode in range(num_episodes):
             elif c == ord('f'):
                 break_all = True
                 break
-        
-        
-        # print("qpos: ", observations['qpos'])
-        # print("qvel: ", observations['qvel'])
-    
-"""
-
-# root
-#     ├── action - (205, 7) 
-#     └── observations
-#           ├── images
-#           │     └── top_cam (205, 7) - 480, 640, 3
-#           ├── qpos (205, 7) # joint_traj
-#           └── qvel (205, 7)
-
-
-""" 
-
-
-## save hdf5
-
-# ===========================================================
-# Start the recording
-# ===========================================================
-"""
-episode_length = 100
-for i in range(episode_length):
-    print("Episode: ", i)
-    joint_traj, actions, qvels, top_frames, target_pose = make_trajectory(env) 
-    
-    # random_start_env()
-    ## save hdf5 file
-    camera_names = ["top_cam"]
-    data_dict = {
-        "/observations/qpos": [],
-        "/observations/qvel": [],
-        "/action": [],
-    }
-    for cam_name in camera_names:
-        data_dict[f"/observations/images/{cam_name}"] = []
-
-    data_dict["/observations/qpos"] = joint_traj
-    data_dict["/observations/qvel"] = qvels
-    data_dict["/action"] = actions
-    data_dict[f"/observations/images/top_cam"] = top_frames
-
-    max_timesteps = len(joint_traj)
-    dataset_path = str(folder_path)
-    if not os.path.exists(dataset_path):
-        os.makedirs(dataset_path)
-
-    with h5py.File(
-        dataset_path + f"/episode_{i}.hdf5", "w", rdcc_nbytes=1024**2 * 2
-    ) as root:
-        root.attrs["sim"] = True
-        root.attrs["info"] = target_pose
-        obs = root.create_group("observations")
-        image = obs.create_group("images")
-        for cam_name in camera_names:
-            _ = image.create_dataset(
-                cam_name,
-                (max_timesteps, 480, 640, 3),
-                dtype="uint8",
-                chunks=(1, 480, 640, 3),
-                compression='gzip', compression_opts=9
-            )
-        qpos = obs.create_dataset("qpos", (max_timesteps, 7), compression='gzip', compression_opts=9)
-        qvel = obs.create_dataset("qvel", (max_timesteps, 7), compression='gzip', compression_opts=9)
-        action = root.create_dataset("action", (max_timesteps, 7), compression='gzip', compression_opts=9)
-
-        for name, array in data_dict.items():
-            root[name][...] = array
-
-"""

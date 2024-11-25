@@ -10,6 +10,8 @@ import hydra
 from torch.utils.tensorboard import SummaryWriter
 from environments.mujoco_envs.pick_cube_env import PickCubeEnv
 import datetime
+from torch.optim.lr_scheduler import ExponentialLR
+
 
 from eval_act import evaluation_sequence
 from utils import load_data  # data functions
@@ -21,27 +23,46 @@ from utils import (
     forward_pass,
 )  # helper functions
 
+def freeze_weights(model, freeze_ratio):
+    # freeze_ratio: ratio of weights to freeze
+    for layer_idx, (name, param) in enumerate(model.named_parameters()):
+        if layer_idx < len(list(model.named_parameters())) * freeze_ratio:
+            param.requires_grad = False
 
 @hydra.main(config_path="config", config_name="train_default")
 def train(conf: OmegaConf):
+    # training / fine-tuning dataset path
     dataset_path = conf.task_config.dataset_dir
     
     # get last folder name from dataset path
     dataset_category = dataset_path.split("/")[-1]
     set_seed(conf.seed)
 
+    # load config
     task_config = conf.task_config
     policy_config = conf.policy_config
 
     # load dataset
     train_dataloader, val_dataloader, stats, _ = load_data(task_config, conf.batch_size)
 
+    # check if to fine-tune
+    if policy_config.ckpt_path:
+        # change learning rates
+        policy_config.lr = policy_config.lr_finetune
+        policy_config.lr_backbone = policy_config.lr_backbone_finetune
+
     # make policy and optimizer
-    policy = make_policy(policy_config)
-    if conf.ckpt_path:
-        policy.load_state_dict(torch.load(conf.ckpt_path))
+    policy = make_policy(policy_config) # loads from checkpoint if ckpt_path is provided
     policy.cuda()
     optimizer = policy.configure_optimizers()
+
+    # use lr scheduler for fine-tuning
+    if policy_config.ckpt_path:
+        scheduler = ExponentialLR(optimizer, gamma=0.9)  # Multiply LR by 0.9 every epoch
+        freeze_weights(policy, freeze_ratio=0.7) # freeze weights first 70% of layers
+    else:
+        scheduler = None
+
 
     train_history = []
     validation_history = []
@@ -66,8 +87,13 @@ def train(conf: OmegaConf):
     with open(stats_path, "wb") as f:
         pickle.dump(stats, f)
 
-    env = PickCubeEnv()  # TODO 쉽게 변경 할 수 있게 수정
+    # env = PickCubeEnv()  # TODO 쉽게 변경 할 수 있게 수정
 
+    # specific epochs to save checkpoints
+    if conf.ckpt_save_list:
+        ckpt_save_list = set(conf.ckpt_save_list)
+
+    # start training loop
     for epoch in tqdm(range(conf.num_epochs)):
         print(f"\nEpoch {epoch}")
         # validation
@@ -102,12 +128,26 @@ def train(conf: OmegaConf):
             optimizer.step()
             optimizer.zero_grad()
             train_history.append(detach_dict(forward_dict))
+
+        # lr scheduler
+        if scheduler:
+            scheduler.step()
+
         epoch_summary = compute_dict_mean(
             train_history[(batch_idx + 1) * epoch : (batch_idx + 1) * (epoch + 1)]
         )
         epoch_train_loss = epoch_summary["loss"]
         writer.add_scalar("Loss/train", epoch_train_loss, epoch)
         print(f"Train loss: {epoch_train_loss:.5f}")
+        
+        current_lr = optimizer.param_groups[0]['lr']
+        writer.add_scalar("LR_Backbone/train", current_lr, epoch)
+        print(f"Epoch {epoch + 1}: Learning rate backbone = {current_lr}")
+        
+        current_lr = optimizer.param_groups[1]['lr']
+        writer.add_scalar("LR_Rest/train", current_lr, epoch)
+        print(f"Epoch {epoch + 1}: Learning rate rest = {current_lr}")
+        
         summary_string = ""
         for k, v in epoch_summary.items():
             summary_string += f"{k}: {v.item():.3f} "
@@ -127,7 +167,7 @@ def train(conf: OmegaConf):
         #     writer.add_scalar("Eval/success_rate", success_rate, epoch)
 
 
-        if epoch % conf.ckpt_save_interval == 0:
+        if epoch % conf.ckpt_save_interval == 0 or epoch in ckpt_save_list:
             ckpt_path = os.path.join(
                 log_path, f"policy_epoch_{epoch}_seed_{conf.seed}.ckpt"
             )

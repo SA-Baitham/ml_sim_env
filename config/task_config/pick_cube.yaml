@@ -1,7 +1,9 @@
 name: pick_cube
-dataset_dir: "/home/ahmed/Desktop/workspace/ml_sim_env/dataset_for_training_corrected_orientation2/pick_cube/clean"
-num_episodes: 50
+real_dataset_dir: "/home/ahmed/Desktop/workspace/ml_sim_env/dataset_150_real"
+dataset_dir: "/home/ahmed/Desktop/workspace/ml_sim_env/dataset_failure_gt/pick_cube/real_cube"
+num_episodes: 8
 episode_len: 165
 state_dim: 7
 action_dim: 8
 camera_names: ['top_cam', 'hand_eye_cam']
+fine_tune: True
