@@ -1362,16 +1362,26 @@ class PickCubeEnv(MujocoEnv):
             noisy_images.append(noisy_image)
         return noisy_images
     
-    def randomize_hsv(self, image_list, hue_variation=0.1, saturation_variation=0.3, value_variation=0.3):
+    def randomize_hsv_episode(self, image_list, hue_variation=0.1, saturation_variation=0.3, value_variation=0.3):
+        """
+        Apply the same HSV randomization to all frames in an episode.
+        Args:
+            image_list (list): List of images to randomize.
+            hue_variation (float): Maximum hue variation as a fraction of the hue range [0, 1].
+            saturation_variation (float): Maximum saturation variation as a fraction of the saturation range [0, 1].
+            value_variation (float): Maximum value variation as a fraction of the value range [0, 1].
+        Returns:
+            list: List of randomized images.
+        """
+        # Generate random variations for the episode
+        h_variation = np.random.uniform(-hue_variation, hue_variation)
+        s_variation = np.random.uniform(-saturation_variation, saturation_variation)
+        v_variation = np.random.uniform(-value_variation, value_variation)
         randomized_images = []
         for image in image_list:
             # Convert to HSV color space
             hsv_image = cv2.cvtColor(image, cv2.COLOR_RGB2HSV)
-            # Randomly adjust each HSV channel
-            h_variation = np.random.uniform(-hue_variation, hue_variation)
-            s_variation = np.random.uniform(-saturation_variation, saturation_variation)
-            v_variation = np.random.uniform(-value_variation, value_variation)
-            # Apply variations
+            # Apply the same variations to all images in the episode
             hsv_image = hsv_image.astype(np.float32)
             hsv_image[..., 0] = (hsv_image[..., 0] + h_variation * 180) % 180  # Hue adjustment
             hsv_image[..., 1] = np.clip(hsv_image[..., 1] + s_variation * 255, 0, 255)  # Saturation adjustment

@@ -9,6 +9,8 @@ logs*
 pretrained_ckpt
 episode_vid
 
+pick_cube_epi150_epo180
+
 # Byte-compiled / optimized / DLL files
 *.py[cod]
 *$py.class
