@@ -1,5 +1,5 @@
 seed: 0
-ckpt_path: '/home/ahmed/Desktop/workspace/ml_sim_env/pick_cube_epi150_epo180/policy_best_epoch_106403_seed_54.ckpt'
+ckpt_path: ""
 temporal_agg: False
 is_render: True
 rollout_num: 10

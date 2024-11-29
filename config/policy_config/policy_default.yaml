@@ -1,4 +1,4 @@
-policy_class: 'ACT'
+policy_class: "ACT"
 lr: 3e-5
 lr_finetune: 3e-6
 kl_weight: 10
@@ -7,12 +7,12 @@ hidden_dim: 512
 dim_feedforward: 3200
 lr_backbone: 1e-5
 lr_backbone_finetune: 1e-6
-backbone: 'resnet18'
+backbone: "resnet18"
 enc_layers: 4
 dec_layers: 7
 nheads: 8
 state_dim: ${task_config.state_dim}
 action_dim: ${task_config.action_dim}
 camera_names: ${task_config.camera_names}
-ckpt_path: '/home/ahmed/Desktop/workspace/ml_sim_env/pretrained_ckpt/policy_epoch_100000_seed_54.ckpt' # for fine-tuning
+ckpt_path: "/workspace/tao_experiments/database/base_model/checkpoint/policy_epoch_100000_seed_54.ckpt" # for fine-tuning
 # lr_finetune: 1e-5

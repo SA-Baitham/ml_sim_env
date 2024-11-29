@@ -14,7 +14,7 @@ from torch.optim.lr_scheduler import ExponentialLR
 
 
 from eval_act import evaluation_sequence
-from utils import load_data  # data functions
+from utils import load_data, load_data_2, load_data_3 # data functions
 from utils import (
     compute_dict_mean,
     set_seed,
@@ -43,8 +43,10 @@ def train(conf: OmegaConf):
     policy_config = conf.policy_config
 
     # load dataset
-    train_dataloader, val_dataloader, stats, _ = load_data(task_config, conf.batch_size)
+    # train_dataloader, val_dataloader, stats, _ = load_data(task_config, conf.batch_size)
+    train_dataloader, val_dataloader, stats, _ = load_data_3(task_config, conf.batch_size, percent_from_dataset_dir=0.3)
 
+    print(f"ckpt_path: {policy_config.ckpt_path}")
     # check if to fine-tune
     if policy_config.ckpt_path:
         # change learning rates
@@ -57,11 +59,11 @@ def train(conf: OmegaConf):
     optimizer = policy.configure_optimizers()
 
     # use lr scheduler for fine-tuning
-    if policy_config.ckpt_path:
-        scheduler = ExponentialLR(optimizer, gamma=0.9)  # Multiply LR by 0.9 every epoch
-        freeze_weights(policy, freeze_ratio=0.7) # freeze weights first 70% of layers
-    else:
-        scheduler = None
+    # if policy_config.ckpt_path:
+    #     scheduler = ExponentialLR(optimizer, gamma=0.9)  # Multiply LR by 0.9 every epoch
+    #     freeze_weights(policy, freeze_ratio=0.7) # freeze weights first 70% of layers
+    # else:
+    scheduler = None
 
 
     train_history = []

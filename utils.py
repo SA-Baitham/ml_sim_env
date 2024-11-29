@@ -5,8 +5,153 @@ import h5py
 from einops import rearrange
 from torch.utils.data import DataLoader
 from glob import glob
+import torchvision.transforms as transforms
+
 
 from policy import ACTPolicy, CNNMLPPolicy
+
+
+# class EpisodicDataset(torch.utils.data.Dataset):
+#     def __init__(self, episode_ids, dataset_dir, camera_names, norm_stats):
+#         super(EpisodicDataset).__init__()
+#         self.episode_ids = episode_ids
+#         self.dataset_dir = dataset_dir
+#         self.camera_names = camera_names
+#         self.norm_stats = norm_stats
+#         self.is_sim = None
+#         self.__getitem__(0) # initialize self.is_sim
+
+#     def __len__(self):
+#         return len(self.episode_ids)
+
+#     def __getitem__(self, index):
+#         sample_full_episode = False # hardcode
+
+#         episode_id = self.episode_ids[index]
+#         dataset_path = os.path.join(self.dataset_dir, f'episode_{episode_id}.hdf5')
+#         with h5py.File(dataset_path, 'r') as root:
+#             is_sim = root.attrs['sim']
+#             original_action_shape = root['/action'].shape
+#             episode_len = original_action_shape[0]
+#             if sample_full_episode:
+#                 start_ts = 0
+#             else:
+#                 start_ts = np.random.choice(episode_len)
+#             # get observation at start_ts only
+#             qpos = root['/observations/qpos'][start_ts]
+#             qvel = root['/observations/qvel'][start_ts]
+#             image_dict = dict()
+#             for cam_name in self.camera_names:
+#                 image_dict[cam_name] = root[f'/observations/images/{cam_name}'][start_ts]
+#             # get all actions after and including start_ts
+#             if is_sim:
+#                 action = root['/action'][start_ts:]
+#                 action_len = episode_len - start_ts
+#             else:
+#                 action = root['/action'][max(0, start_ts - 1):] # hack, to make timesteps more aligned
+#                 action_len = episode_len - max(0, start_ts - 1) # hack, to make timesteps more aligned
+
+#         self.is_sim = is_sim
+#         padded_action = np.zeros(original_action_shape, dtype=np.float32)
+#         padded_action[:action_len] = action
+#         is_pad = np.zeros(episode_len)
+#         is_pad[action_len:] = 1
+
+#         # new axis for different cameras
+#         all_cam_images = []
+#         for cam_name in self.camera_names:
+#             all_cam_images.append(image_dict[cam_name])
+#         all_cam_images = np.stack(all_cam_images, axis=0)
+
+#         # construct observations
+#         image_data = torch.from_numpy(all_cam_images)
+#         qpos_data = torch.from_numpy(qpos).float()
+#         action_data = torch.from_numpy(padded_action).float()
+#         is_pad = torch.from_numpy(is_pad).bool()
+
+#         # channel last
+#         image_data = torch.einsum('k h w c -> k c h w', image_data)
+
+#         # normalize image and change dtype to float
+#         image_data = image_data / 255.0
+#         action_data = (action_data - self.norm_stats["action_mean"]) / self.norm_stats["action_std"]
+#         qpos_data = (qpos_data - self.norm_stats["qpos_mean"]) / self.norm_stats["qpos_std"]
+
+#         return image_data, qpos_data, action_data, is_pad
+
+
+# def get_norm_stats(dataset_dir, num_episodes):
+#     all_qpos_data = []
+#     all_action_data = []
+#     for episode_idx in range(num_episodes):
+#         dataset_path = os.path.join(dataset_dir, f'episode_{episode_idx}.hdf5')
+#         with h5py.File(dataset_path, 'r') as root:
+#             qpos = root['/observations/qpos'][()]
+#             qvel = root['/observations/qvel'][()]
+#             action = root['/action'][()]
+#         all_qpos_data.append(torch.from_numpy(qpos))
+#         all_action_data.append(torch.from_numpy(action))
+#     all_qpos_data = torch.stack(all_qpos_data)
+#     all_action_data = torch.stack(all_action_data)
+#     all_action_data = all_action_data
+
+#     # normalize action data
+#     action_mean = all_action_data.mean(dim=[0, 1], keepdim=True)
+#     action_std = all_action_data.std(dim=[0, 1], keepdim=True)
+#     action_std = torch.clip(action_std, 1e-2, np.inf) # clipping
+
+#     # normalize qpos data
+#     qpos_mean = all_qpos_data.mean(dim=[0, 1], keepdim=True)
+#     qpos_std = all_qpos_data.std(dim=[0, 1], keepdim=True)
+#     qpos_std = torch.clip(qpos_std, 1e-2, np.inf) # clipping
+
+#     stats = {"action_mean": action_mean.numpy().squeeze(), "action_std": action_std.numpy().squeeze(),
+#              "qpos_mean": qpos_mean.numpy().squeeze(), "qpos_std": qpos_std.numpy().squeeze(),
+#              "example_qpos": qpos}
+
+#     return stats
+
+
+# def load_data(task_config, batch_size):
+#     dataset_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), task_config.dataset_dir)
+#     real_dataset_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), task_config.real_dataset_dir)
+#     num_episodes = task_config.num_episodes
+#     camera_names = task_config.camera_names
+#     # print("camera_names", camera_names)
+
+#     num_real_episodes = len(glob(real_dataset_dir + "/*.hdf5"))
+
+#     print(f'\nData from: {dataset_dir}\n')
+
+#     # obtain train test split
+#     train_ratio = 0.8
+#     shuffled_indices = np.random.permutation(num_episodes)
+#     if task_config.fine_tune:
+#         train_indices = shuffled_indices
+#         val_indices = np.random.permutation(num_real_episodes)
+#     else:
+#         train_indices = shuffled_indices[:int(train_ratio * num_episodes)]
+#         val_indices = shuffled_indices[int(train_ratio * num_episodes):]
+
+#     # obtain normalization stats for qpos and action
+#     norm_stats = get_norm_stats(dataset_dir, num_episodes)
+
+#     # construct dataset and dataloader
+#     train_dataset = EpisodicDataset(train_indices, dataset_dir, camera_names, norm_stats)
+
+#     if task_config.fine_tune:
+#         val_dataset = EpisodicDataset(val_indices, real_dataset_dir, camera_names, norm_stats)
+#     else:
+#         val_dataset = EpisodicDataset(val_indices, dataset_dir, camera_names, norm_stats)
+#     train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, pin_memory=True, num_workers=1, prefetch_factor=1)
+#     val_dataloader = DataLoader(val_dataset, batch_size=batch_size, shuffle=True, pin_memory=True, num_workers=1, prefetch_factor=1)
+
+#     # print number of episodes in train and val
+#     print(f"Number of episodes in train: {len(train_indices)}")
+#     print(f"Number of episodes in val: {len(val_indices)}")
+
+#     return train_dataloader, val_dataloader, norm_stats, train_dataset.is_sim
+
 class EpisodicDataset(torch.utils.data.Dataset):
     def __init__(self, episode_ids, dataset_dir, camera_names, norm_stats):
         super(EpisodicDataset).__init__()
@@ -15,37 +160,45 @@ class EpisodicDataset(torch.utils.data.Dataset):
         self.camera_names = camera_names
         self.norm_stats = norm_stats
         self.is_sim = None
-        self.__getitem__(0) # initialize self.is_sim
+        self.augment_images = True
+        self.transformations = True
+        self.__getitem__(0)  # initialize self.is_sim
 
     def __len__(self):
         return len(self.episode_ids)
 
     def __getitem__(self, index):
-        sample_full_episode = False # hardcode
+        sample_full_episode = False  # hardcode
 
         episode_id = self.episode_ids[index]
-        dataset_path = os.path.join(self.dataset_dir, f'episode_{episode_id}.hdf5')
-        with h5py.File(dataset_path, 'r') as root:
-            is_sim = root.attrs['sim']
-            original_action_shape = root['/action'].shape
+        dataset_path = os.path.join(self.dataset_dir, f"episode_{episode_id}.hdf5")
+        with h5py.File(dataset_path, "r") as root:
+            is_sim = root.attrs["sim"]
+            original_action_shape = root["/action"].shape
             episode_len = original_action_shape[0]
             if sample_full_episode:
                 start_ts = 0
             else:
                 start_ts = np.random.choice(episode_len)
             # get observation at start_ts only
-            qpos = root['/observations/qpos'][start_ts]
-            qvel = root['/observations/qvel'][start_ts]
+            qpos = root["/observations/qpos"][start_ts]
+            qvel = root["/observations/qvel"][start_ts]
             image_dict = dict()
             for cam_name in self.camera_names:
-                image_dict[cam_name] = root[f'/observations/images/{cam_name}'][start_ts]
+                image_dict[cam_name] = root[f"/observations/images/{cam_name}"][
+                    start_ts
+                ]
             # get all actions after and including start_ts
             if is_sim:
-                action = root['/action'][start_ts:]
+                action = root["/action"][start_ts:]
                 action_len = episode_len - start_ts
             else:
-                action = root['/action'][max(0, start_ts - 1):] # hack, to make timesteps more aligned
-                action_len = episode_len - max(0, start_ts - 1) # hack, to make timesteps more aligned
+                action = root["/action"][
+                    max(0, start_ts - 1) :
+                ]  # hack, to make timesteps more aligned
+                action_len = episode_len - max(
+                    0, start_ts - 1
+                )  # hack, to make timesteps more aligned
 
         self.is_sim = is_sim
         padded_action = np.zeros(original_action_shape, dtype=np.float32)
@@ -58,7 +211,6 @@ class EpisodicDataset(torch.utils.data.Dataset):
         for cam_name in self.camera_names:
             all_cam_images.append(image_dict[cam_name])
         all_cam_images = np.stack(all_cam_images, axis=0)
-
         # construct observations
         image_data = torch.from_numpy(all_cam_images)
         qpos_data = torch.from_numpy(qpos).float()
@@ -66,84 +218,124 @@ class EpisodicDataset(torch.utils.data.Dataset):
         is_pad = torch.from_numpy(is_pad).bool()
 
         # channel last
-        image_data = torch.einsum('k h w c -> k c h w', image_data)
+        image_data = torch.einsum("k h w c -> k c h w", image_data)
+
+        # augmentation
+        if self.transformations is True:
+            print("Initializing transformations")
+            original_size = image_data.shape[2:]
+            ratio = 0.95
+            self.transformations = [
+                transforms.RandomCrop(
+                    size=[
+                        int(original_size[0] * ratio),
+                        int(original_size[1] * ratio),
+                    ]
+                ),
+                transforms.Resize(original_size, antialias=True),
+                transforms.RandomRotation(degrees=[-5.0, 5.0], expand=False),
+                transforms.ColorJitter(
+                    brightness=0.3, contrast=0.4, saturation=0.5
+                ),  # , hue=0.08)
+            ]
+
+        if self.augment_images:
+            for transform in self.transformations:
+                image_data = transform(image_data)
 
         # normalize image and change dtype to float
         image_data = image_data / 255.0
-        action_data = (action_data - self.norm_stats["action_mean"]) / self.norm_stats["action_std"]
-        qpos_data = (qpos_data - self.norm_stats["qpos_mean"]) / self.norm_stats["qpos_std"]
+
+        action_data = (action_data - self.norm_stats["action_mean"]) / self.norm_stats[
+            "action_std"
+        ]
+        qpos_data = (qpos_data - self.norm_stats["qpos_mean"]) / self.norm_stats[
+            "qpos_std"
+        ]
 
         return image_data, qpos_data, action_data, is_pad
 
 
-def get_norm_stats(dataset_dir, num_episodes):
-    all_qpos_data = []
-    all_action_data = []
-    for episode_idx in range(num_episodes):
-        dataset_path = os.path.join(dataset_dir, f'episode_{episode_idx}.hdf5')
-        with h5py.File(dataset_path, 'r') as root:
-            qpos = root['/observations/qpos'][()]
-            qvel = root['/observations/qvel'][()]
-            action = root['/action'][()]
-        all_qpos_data.append(torch.from_numpy(qpos))
-        all_action_data.append(torch.from_numpy(action))
-    all_qpos_data = torch.stack(all_qpos_data)
-    all_action_data = torch.stack(all_action_data)
-    all_action_data = all_action_data
-
-    # normalize action data
-    action_mean = all_action_data.mean(dim=[0, 1], keepdim=True)
-    action_std = all_action_data.std(dim=[0, 1], keepdim=True)
-    action_std = torch.clip(action_std, 1e-2, np.inf) # clipping
-
-    # normalize qpos data
-    qpos_mean = all_qpos_data.mean(dim=[0, 1], keepdim=True)
-    qpos_std = all_qpos_data.std(dim=[0, 1], keepdim=True)
-    qpos_std = torch.clip(qpos_std, 1e-2, np.inf) # clipping
-
-    stats = {"action_mean": action_mean.numpy().squeeze(), "action_std": action_std.numpy().squeeze(),
-             "qpos_mean": qpos_mean.numpy().squeeze(), "qpos_std": qpos_std.numpy().squeeze(),
-             "example_qpos": qpos}
-
-    return stats
-
-
-def load_data(task_config, batch_size):
-    dataset_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), task_config.dataset_dir)
-    real_dataset_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), task_config.real_dataset_dir)
+def load_data_2(task_config, batch_size, percent_from_dataset_dir):
+    
+    dataset_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), task_config.real_dataset_dir)
+    real_dataset_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), task_config.failure_dataset_dir)
+    
     num_episodes = task_config.num_episodes
     camera_names = task_config.camera_names
-    # print("camera_names", camera_names)
 
     num_real_episodes = len(glob(real_dataset_dir + "/*.hdf5"))
+    num_dataset_episodes = len(glob(dataset_dir + "/*.hdf5"))
 
-    print(f'\nData from: {dataset_dir}\n')
+    print(f'\nData from: {dataset_dir} and {real_dataset_dir}\n')
 
     # obtain train test split
     train_ratio = 0.8
-    shuffled_indices = np.random.permutation(num_episodes)
-    if task_config.fine_tune:
-        train_indices = shuffled_indices
-        val_indices = np.random.permutation(num_real_episodes)
-    else:
-        train_indices = shuffled_indices[:int(train_ratio * num_episodes)]
-        val_indices = shuffled_indices[int(train_ratio * num_episodes):]
+    shuffled_indices = np.random.permutation(num_dataset_episodes)
+    selected_indices = shuffled_indices[:int(percent_from_dataset_dir * num_dataset_episodes)]
+    val_indices = np.random.permutation(num_real_episodes)
 
     # obtain normalization stats for qpos and action
-    norm_stats = get_norm_stats(dataset_dir, num_episodes)
+    norm_stats = get_norm_stats(dataset_dir, num_dataset_episodes)
 
     # construct dataset and dataloader
-    train_dataset = EpisodicDataset(train_indices, dataset_dir, camera_names, norm_stats)
+    train_dataset = EpisodicDataset(selected_indices, dataset_dir, camera_names, norm_stats)
+    val_dataset = EpisodicDataset(val_indices, real_dataset_dir, camera_names, norm_stats)
 
-    if task_config.fine_tune:
-        val_dataset = EpisodicDataset(val_indices, real_dataset_dir, camera_names, norm_stats)
-    else:
-        val_dataset = EpisodicDataset(val_indices, dataset_dir, camera_names, norm_stats)
     train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, pin_memory=True, num_workers=1, prefetch_factor=1)
     val_dataloader = DataLoader(val_dataset, batch_size=batch_size, shuffle=True, pin_memory=True, num_workers=1, prefetch_factor=1)
 
     # print number of episodes in train and val
-    print(f"Number of episodes in train: {len(train_indices)}")
+    print(f"Number of episodes in train: {len(selected_indices)}")
+    print(f"Number of episodes in val: {len(val_indices)}")
+
+    return train_dataloader, val_dataloader, norm_stats, train_dataset.is_sim
+
+def load_data_3(task_config, batch_size, percent_from_dataset_dir):
+    # Define dataset directories
+    dataset_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), task_config.real_dataset_dir)
+    real_dataset_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), task_config.failure_dataset_dir)
+    additional_dataset_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), task_config.dataset_dir)
+    
+    num_episodes = task_config.num_episodes
+    camera_names = task_config.camera_names
+
+    # Count episodes in each directory
+    num_real_episodes = len(glob(real_dataset_dir + "/*.hdf5"))
+    num_dataset_episodes = len(glob(dataset_dir + "/*.hdf5"))
+    num_additional_episodes = len(glob(additional_dataset_dir + "/*.hdf5"))
+
+    print(f'\nData from: {dataset_dir}, {real_dataset_dir}, and {additional_dataset_dir}\n')
+
+    # Obtain train-test split for the main dataset
+    train_ratio = 0.8
+    shuffled_indices = np.random.permutation(num_dataset_episodes)
+    selected_indices = shuffled_indices[:int(percent_from_dataset_dir * num_dataset_episodes)]
+    
+    # Select 25% of additional dataset
+    shuffled_additional_indices = np.random.permutation(num_additional_episodes)
+    additional_indices = shuffled_additional_indices[:int(0.25 * num_additional_episodes)]
+    
+    # Validation dataset indices
+    val_indices = np.random.permutation(num_real_episodes)
+
+    # Obtain normalization stats for qpos and action
+    norm_stats = get_norm_stats(dataset_dir, num_dataset_episodes)
+
+    # Construct datasets
+    train_dataset = EpisodicDataset(selected_indices, dataset_dir, camera_names, norm_stats)
+    additional_dataset = EpisodicDataset(additional_indices, additional_dataset_dir, camera_names, norm_stats)
+    val_dataset = EpisodicDataset(val_indices, real_dataset_dir, camera_names, norm_stats)
+
+    # Combine main and additional datasets for training
+    combined_train_dataset = torch.utils.data.ConcatDataset([train_dataset, additional_dataset])
+
+    # Construct dataloaders
+    train_dataloader = DataLoader(combined_train_dataset, batch_size=batch_size, shuffle=True, pin_memory=True, num_workers=1, prefetch_factor=1)
+    val_dataloader = DataLoader(val_dataset, batch_size=batch_size, shuffle=True, pin_memory=True, num_workers=1, prefetch_factor=1)
+
+    # Print number of episodes in train and val
+    print(f"Number of episodes in train: {len(selected_indices) + len(additional_indices)}")
     print(f"Number of episodes in val: {len(val_indices)}")
 
     return train_dataloader, val_dataloader, norm_stats, train_dataset.is_sim
